@@ -53,9 +53,10 @@ class Codegen:
         try:
             return call(instruction)
         except Exception as e:
-            raise Exception(
-                f"Error at {instruction.lineno}:{instruction.col_offset}: {e}"
-            )
+            raise e
+            # Exception(
+            #     f"Error at {instruction.lineno}:{instruction.col_offset}: {e}"
+            # )
 
     def visit_Module(self, node: ast.Module):
         for module_node in node.body:
@@ -164,6 +165,15 @@ class Codegen:
         else:
             ref = var_ref.llvm
         return self.builder.store(value.llvm, ref)
+
+    def visit_BinOp(self, node: ast.BinOp):
+        lhs = self.codegen(node.left)
+        rhs = self.codegen(node.right)
+        op = getattr(lhs.j_type, f"impl_{node.op.__class__.__name__}")
+        if not op:
+            raise Exception("Op not supported")
+        result = op(self, lhs, rhs)
+        return JitObj(lhs.j_type, result, node)
 
 
 codegen = Codegen()
