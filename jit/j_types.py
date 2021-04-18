@@ -81,6 +81,10 @@ class SignedInteger(BaseInteger):
         lhs_l, rhs_l = _op(codegen, lhs, rhs)
         return codegen.builder.icmp_signed("==", lhs_l, rhs_l)
 
+    def impl_NotEq(self, codegen, lhs, rhs):
+        lhs_l, rhs_l = _op(codegen, lhs, rhs)
+        return codegen.builder.icmp_signed("!=", lhs_l, rhs_l)
+
     def impl_Gt(self, codegen, lhs, rhs):
         lhs_l, rhs_l = _op(codegen, lhs, rhs)
         return codegen.builder.icmp_signed(">", lhs_l, rhs_l)
@@ -96,6 +100,7 @@ class SignedInteger(BaseInteger):
     def impl_LtE(self, codegen, lhs, rhs):
         lhs_l, rhs_l = _op(codegen, lhs, rhs)
         return codegen.builder.icmp_signed("<=", lhs_l, rhs_l)
+
 
 class UnsignedInteger(BaseInteger):
     signed = False
@@ -131,6 +136,10 @@ class BaseFloat(PrimitiveType):
         lhs_l, rhs_l = _op(codegen, lhs, rhs)
         return codegen.builder.fcmp_unordered("==", lhs_l, rhs_l)
 
+    def impl_NotEq(self, codegen, lhs, rhs):
+        lhs_l, rhs_l = _op(codegen, lhs, rhs)
+        return codegen.builder.fcmp_unordered("!=", lhs_l, rhs_l)
+
     def impl_Gt(self, codegen, lhs, rhs):
         lhs_l, rhs_l = _op(codegen, lhs, rhs)
         return codegen.builder.fcmp_unordered(">", lhs_l, rhs_l)
@@ -146,6 +155,7 @@ class BaseFloat(PrimitiveType):
     def impl_LtE(self, codegen, lhs, rhs):
         lhs_l, rhs_l = _op(codegen, lhs, rhs)
         return codegen.builder.fcmp_unordered("<=", lhs_l, rhs_l)
+
 
 class Float(BaseFloat):
     size = 32
