@@ -184,4 +184,16 @@ class Codegen:
         result = op(self, lhs)
         return JitObj(lhs.j_type, result, node)
 
+    def visit_Compare(self, node: ast.Compare):
+        # TODO: multi-comparison
+        # maybe unpack that to if x==y and y==z
+        lhs = self.codegen(node.left)
+        rhs = self.codegen(node.comparators[0])
+        optype = node.ops[0]
+        op = getattr(lhs.j_type, f"impl_{optype.__class__.__name__}", None)
+        if not op:
+            raise Exception("Op not supported", optype.__class__.__name__)
+        result = op(self, lhs, rhs)
+        return JitObj(u1, result, node)        
+
 codegen = Codegen()

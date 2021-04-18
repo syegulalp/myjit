@@ -76,8 +76,9 @@ class SignedInteger(BaseInteger):
         lhs_l, rhs_l = _op(codegen, lhs, rhs)
         return codegen.builder.srem(lhs_l, rhs_l)
 
-    # def impl_BINARY_MODULO(self, codegen, lhs, rhs):
-    #     return codegen.builder.srem(lhs, rhs)
+    def impl_Eq(self, codegen, lhs, rhs):
+        lhs_l, rhs_l = _op(codegen, lhs, rhs)
+        return codegen.builder.icmp_signed("==", lhs_l, rhs_l)
 
     # def impl_COMPARE_OP(self, codegen, lhs, rhs, op):
     #     return codegen.builder.icmp_signed(op, lhs, rhs)
@@ -113,9 +114,6 @@ class BaseFloat(PrimitiveType):
     def impl_USub(self, codegen, lhs):
         lhs_l = codegen.val(lhs)
         return codegen.builder.fsub(ir.Constant(lhs_l.type, 0.0), lhs_l)
-
-    # def impl_BINARY_MODULO(self, codegen, lhs, rhs):
-    #     return codegen.builder.frem(lhs, rhs)
 
     # def impl_COMPARE_OP(self, codegen, lhs, rhs, op):
     #     return codegen.builder.fcmp_unordered(op, lhs, rhs)

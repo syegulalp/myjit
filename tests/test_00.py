@@ -3,15 +3,17 @@ from jit import jit
 
 
 @jit
-def void():
-    return
+def eq1():
+    x=1
+    return x==1
 
 @jit
-def zero():
-    return 0
+def eq2():
+    x=1
+    return x==2
 
 
 class Test(unittest.TestCase):
     def test_return_constant(self):
-        self.assertEqual(void(), None)
-        self.assertEqual(zero(), 0)
+        self.assertEqual(eq1(), True)
+        self.assertEqual(eq2(), False)
