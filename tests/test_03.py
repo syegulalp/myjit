@@ -4,13 +4,15 @@ from jit import jit
 
 @jit
 def sh1():
-    x=2
-    return x<<2
+    x = 2
+    return x << 2
+
 
 @jit
 def sh2():
-    x=8
-    return x>>2
+    x = 8
+    return x >> 2
+
 
 class Test(unittest.TestCase):
     def test_return_constant(self):

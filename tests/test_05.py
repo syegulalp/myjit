@@ -4,23 +4,27 @@ from jit import jit
 
 @jit
 def mul1():
-    x=2
-    return x*2
+    x = 2
+    return x * 2
+
 
 @jit
 def mul2():
-    x=2.0
-    return x*2.5
+    x = 2.0
+    return x * 2.5
+
 
 @jit
 def div1():
-    x=4
-    return x/2
+    x = 4
+    return x / 2
+
 
 @jit
 def div2():
-    x=4.0
-    return x/2.5
+    x = 4.0
+    return x / 2.5
+
 
 class Test(unittest.TestCase):
     def test_return_constant(self):

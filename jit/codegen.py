@@ -14,7 +14,7 @@ class Codegen:
     def __init__(self):
         self.modules = {}
 
-    def val(self, obj:JitObj):
+    def val(self, obj: JitObj):
         llvm = obj.llvm
         if isinstance(llvm, ir.AllocaInstr):
             llvm = self.builder.load(llvm)
@@ -73,7 +73,9 @@ class Codegen:
             self.type_unset = True
             self.return_type = void
 
-        function_returntype = ir.VoidType() if self.return_type is void else self.return_type
+        function_returntype = (
+            ir.VoidType() if self.return_type is void else self.return_type
+        )
         self.functiontype = ir.FunctionType(function_returntype, [], False)
         self.function = ir.Function(self.module, self.functiontype, node.name)
         self.function.return_jtype = self.return_type
@@ -87,9 +89,8 @@ class Codegen:
         # TODO: use type alloca
 
         if self.return_type is not void:
-            self.return_value = JitObj(self.return_type,
-                self.builder.alloca(self.return_type.llvm),
-                None
+            self.return_value = JitObj(
+                self.return_type, self.builder.alloca(self.return_type.llvm), None
             )
         else:
             self.return_value = void
@@ -106,20 +107,19 @@ class Codegen:
             self.builder.branch(self.exit_block)
 
         self.builder.position_at_start(self.exit_block)
-        
+
         if self.return_value is void:
             self.builder.ret_void()
         else:
             self.builder.ret(self.val(self.return_value))
 
-   
     def visit_Return(self, node: ast.Return):
         if node.value is None:
             return
 
         return_value = self.codegen(node.value)
         llvm = self.val(return_value)
-            
+
         if return_value.j_type != self.return_type:
             if not self.type_unset:
                 raise Exception("return type redefinition")
@@ -130,9 +130,8 @@ class Codegen:
             self.function.return_value.type = llvm.type
             self.function.return_jtype = return_value.j_type
             self.type_unset = False
-            self.return_value = JitObj(self.return_type,
-                self.builder.alloca(self.return_type.llvm),
-                None
+            self.return_value = JitObj(
+                self.return_type, self.builder.alloca(self.return_type.llvm), None
             )
 
         self.builder.store(llvm, self.return_value.llvm)
@@ -153,7 +152,7 @@ class Codegen:
         return var_ref
 
     def visit_Assign(self, node: ast.Assign):
-        # TODO: allow multiple assign        
+        # TODO: allow multiple assign
         varname: ast.Name = node.targets[0]
 
         value = self.codegen(node.value)
@@ -194,6 +193,7 @@ class Codegen:
         if not op:
             raise Exception("Op not supported", optype.__class__.__name__)
         result = op(self, lhs, rhs)
-        return JitObj(u1, result, node)        
+        return JitObj(u1, result, node)
+
 
 codegen = Codegen()

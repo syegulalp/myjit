@@ -4,23 +4,27 @@ from jit import jit
 
 @jit
 def mod1():
-    x=4
+    x = 4
     return x % 4
+
 
 @jit
 def mod2():
-    x=0
+    x = 0
     return x % 4
+
 
 @jit
 def mod3():
-    x=1
+    x = 1
     return x % 4
+
 
 @jit
 def mod4():
-    x=2
+    x = 2
     return x % 4
+
 
 class Test(unittest.TestCase):
     def test_return_constant(self):

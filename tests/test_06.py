@@ -6,6 +6,7 @@ from jit import jit
 def void():
     return
 
+
 @jit
 def zero():
     return 0

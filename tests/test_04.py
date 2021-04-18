@@ -4,12 +4,13 @@ from jit import jit
 
 @jit
 def neg1():
-    x=2
+    x = 2
     return -x
+
 
 @jit
 def neg2():
-    x=2.0
+    x = 2.0
     return -x
 
 

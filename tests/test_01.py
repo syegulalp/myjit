@@ -4,23 +4,27 @@ from jit import jit
 
 @jit
 def add1():
-    x=1
-    return x+2
+    x = 1
+    return x + 2
+
 
 @jit
 def add2():
-    x=1.0
-    return x+2.5
+    x = 1.0
+    return x + 2.5
+
 
 @jit
 def sub1():
-    x=3
-    return x-1
+    x = 3
+    return x - 1
+
 
 @jit
 def sub2():
-    x=3.0
-    return x-1.5
+    x = 3.0
+    return x - 1.5
+
 
 class Test(unittest.TestCase):
     def test_return_constant(self):

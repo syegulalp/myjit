@@ -28,6 +28,7 @@ class PrimitiveType(JitType):
 def _op(codegen, lhs, rhs):
     return codegen.val(lhs), codegen.val(rhs)
 
+
 class BaseInteger(PrimitiveType):
 
     j_type = ir.IntType
@@ -50,15 +51,15 @@ class BaseInteger(PrimitiveType):
 
     def impl_Mult(self, codegen, lhs, rhs):
         lhs_l, rhs_l = _op(codegen, lhs, rhs)
-        return codegen.builder.mul(lhs_l, rhs_l)        
+        return codegen.builder.mul(lhs_l, rhs_l)
 
     def impl_LShift(self, codegen, lhs, rhs):
         lhs_l, rhs_l = _op(codegen, lhs, rhs)
-        return codegen.builder.shl(lhs_l, rhs_l)    
+        return codegen.builder.shl(lhs_l, rhs_l)
 
     def impl_RShift(self, codegen, lhs, rhs):
         lhs_l, rhs_l = _op(codegen, lhs, rhs)
-        return codegen.builder.ashr(lhs_l, rhs_l)            
+        return codegen.builder.ashr(lhs_l, rhs_l)
 
 
 class SignedInteger(BaseInteger):
@@ -81,10 +82,8 @@ class SignedInteger(BaseInteger):
         return codegen.builder.icmp_signed("==", lhs_l, rhs_l)
 
 
-
 class UnsignedInteger(BaseInteger):
     signed = False
-
 
 
 class BaseFloat(PrimitiveType):
@@ -107,7 +106,7 @@ class BaseFloat(PrimitiveType):
 
     def impl_Div(self, codegen, lhs, rhs):
         lhs_l, rhs_l = _op(codegen, lhs, rhs)
-        return codegen.builder.fdiv(lhs_l, rhs_l)     
+        return codegen.builder.fdiv(lhs_l, rhs_l)
 
     def impl_USub(self, codegen, lhs):
         lhs_l = codegen.val(lhs)
@@ -118,13 +117,11 @@ class BaseFloat(PrimitiveType):
         return codegen.builder.fcmp_unordered("==", lhs_l, rhs_l)
 
 
-
 class Float(BaseFloat):
     size = 32
 
     def to_ctype(self):
         return ctypes.c_float
-
 
     j_type = ir.FloatType
 
