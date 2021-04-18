@@ -54,9 +54,6 @@ class Codegen:
             return call(instruction)
         except Exception as e:
             raise e
-            # Exception(
-            #     f"Error at {instruction.lineno}:{instruction.col_offset}: {e}"
-            # )
 
     def visit_Module(self, node: ast.Module):
         for module_node in node.body:
@@ -168,18 +165,19 @@ class Codegen:
     def visit_BinOp(self, node: ast.BinOp):
         lhs = self.codegen(node.left)
         rhs = self.codegen(node.right)
-        op = getattr(lhs.j_type, f"impl_{node.op.__class__.__name__}", None)
+        optype = node.op.__class__.__name__
+        op = getattr(lhs.j_type, f"impl_{optype}", None)
         if not op:
-            raise Exception("Op not supported", node.op.__class__.__name__)
+            raise Exception("Op not supported", optype)
         result = op(self, lhs, rhs)
         return JitObj(lhs.j_type, result, node)
 
     def visit_UnaryOp(self, node: ast.UnaryOp):
         lhs = self.codegen(node.operand)
-        optype = node.op
-        op = getattr(lhs.j_type, f"impl_{node.op.__class__.__name__}", None)
+        optype = node.op.__class__.__name__
+        op = getattr(lhs.j_type, f"impl_{optype}", None)
         if not op:
-            raise Exception("Op not supported", node.op.__class__.__name__)
+            raise Exception("Op not supported", optype)
         result = op(self, lhs)
         return JitObj(lhs.j_type, result, node)
 
@@ -188,10 +186,10 @@ class Codegen:
         # maybe unpack that to if x==y and y==z
         lhs = self.codegen(node.left)
         rhs = self.codegen(node.comparators[0])
-        optype = node.ops[0]
-        op = getattr(lhs.j_type, f"impl_{optype.__class__.__name__}", None)
+        optype = node.ops[0].__class__.__name__
+        op = getattr(lhs.j_type, f"impl_{optype}", None)
         if not op:
-            raise Exception("Op not supported", optype.__class__.__name__)
+            raise Exception("Op not supported", optype)
         result = op(self, lhs, rhs)
         return JitObj(u1, result, node)
 
