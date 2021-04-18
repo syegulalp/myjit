@@ -169,11 +169,19 @@ class Codegen:
     def visit_BinOp(self, node: ast.BinOp):
         lhs = self.codegen(node.left)
         rhs = self.codegen(node.right)
-        op = getattr(lhs.j_type, f"impl_{node.op.__class__.__name__}")
+        op = getattr(lhs.j_type, f"impl_{node.op.__class__.__name__}", None)
         if not op:
-            raise Exception("Op not supported")
+            raise Exception("Op not supported", node.op.__class__.__name__)
         result = op(self, lhs, rhs)
         return JitObj(lhs.j_type, result, node)
 
+    def visit_UnaryOp(self, node: ast.UnaryOp):
+        lhs = self.codegen(node.operand)
+        optype = node.op
+        op = getattr(lhs.j_type, f"impl_{node.op.__class__.__name__}", None)
+        if not op:
+            raise Exception("Op not supported", node.op.__class__.__name__)
+        result = op(self, lhs)
+        return JitObj(lhs.j_type, result, node)
 
 codegen = Codegen()

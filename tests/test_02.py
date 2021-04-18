@@ -3,17 +3,28 @@ from jit import jit
 
 
 @jit
-def mul1():
-    x=2
-    return x*2
+def mod1():
+    x=4
+    return x % 4
 
 @jit
-def mul2():
-    x=2.0
-    return x*2.5
+def mod2():
+    x=0
+    return x % 4
 
+@jit
+def mod3():
+    x=1
+    return x % 4
+
+@jit
+def mod4():
+    x=2
+    return x % 4
 
 class Test(unittest.TestCase):
     def test_return_constant(self):
-        self.assertEqual(mul1(), 4)
-        self.assertEqual(mul2(), 5.0)
+        self.assertEqual(mod1(), 0)
+        self.assertEqual(mod2(), 0)
+        self.assertEqual(mod3(), 1)
+        self.assertEqual(mod4(), 2)

@@ -52,27 +52,32 @@ class BaseInteger(PrimitiveType):
         lhs_l, rhs_l = _op(codegen, lhs, rhs)
         return codegen.builder.mul(lhs_l, rhs_l)        
 
-    # def impl_BINARY_MULTIPLY(self, codegen, lhs, rhs):
-    #     return codegen.builder.mul(lhs, rhs)
+    def impl_LShift(self, codegen, lhs, rhs):
+        lhs_l, rhs_l = _op(codegen, lhs, rhs)
+        return codegen.builder.shl(lhs_l, rhs_l)    
 
-    # def impl_BINARY_LSHIFT(self, codegen, lhs, rhs):
-    #     return codegen.builder.shl(lhs, rhs)
+    def impl_RShift(self, codegen, lhs, rhs):
+        lhs_l, rhs_l = _op(codegen, lhs, rhs)
+        return codegen.builder.ashr(lhs_l, rhs_l)            
 
 
 class SignedInteger(BaseInteger):
     signed = True
 
-    # def impl_BINARY_TRUE_DIVIDE(self, codegen, lhs, rhs):
-    #     return codegen.builder.sdiv(lhs, rhs)
+    def impl_Div(self, codegen, lhs, rhs):
+        lhs_l, rhs_l = _op(codegen, lhs, rhs)
+        return codegen.builder.sdiv(lhs_l, rhs_l)
 
-    # def impl_UNARY_NEGATIVE(self, codegen, lhs):
-    #     return codegen.builder.sub(ir.Constant(lhs.type, 0), lhs)
+    def impl_USub(self, codegen, lhs):
+        lhs_l = codegen.val(lhs)
+        return codegen.builder.sub(ir.Constant(lhs_l.type, 0), lhs_l)
+
+    def impl_Mod(self, codegen, lhs, rhs):
+        lhs_l, rhs_l = _op(codegen, lhs, rhs)
+        return codegen.builder.srem(lhs_l, rhs_l)
 
     # def impl_BINARY_MODULO(self, codegen, lhs, rhs):
     #     return codegen.builder.srem(lhs, rhs)
-
-    # def impl_BINARY_RSHIFT(self, codegen, lhs, rhs):
-    #     return codegen.builder.ashr(lhs, rhs)
 
     # def impl_COMPARE_OP(self, codegen, lhs, rhs, op):
     #     return codegen.builder.icmp_signed(op, lhs, rhs)
@@ -81,17 +86,6 @@ class SignedInteger(BaseInteger):
 class UnsignedInteger(BaseInteger):
     signed = False
 
-    # def impl_BINARY_TRUE_DIVIDE(self, codegen, lhs, rhs):
-    #     return codegen.builder.udiv(lhs, rhs)
-
-    # def impl_UNARY_NEGATIVE(self, codegen, lhs):
-    #     raise Exception("negation not allowed with unsigned type")
-
-    # def impl_BINARY_MODULO(self, codegen, lhs, rhs):
-    #     return codegen.builder.urem(lhs, rhs)
-
-    # def impl_BINARY_RSHIFT(self, codegen, lhs, rhs):
-    #     return codegen.builder.lshr(lhs, rhs)
 
 
 class BaseFloat(PrimitiveType):
@@ -108,16 +102,17 @@ class BaseFloat(PrimitiveType):
         lhs_l, rhs_l = _op(codegen, lhs, rhs)
         return codegen.builder.fsub(lhs_l, rhs_l)
 
-
     def impl_Mult(self, codegen, lhs, rhs):
         lhs_l, rhs_l = _op(codegen, lhs, rhs)
         return codegen.builder.fmul(lhs_l, rhs_l)
 
-    # def impl_BINARY_MULTIPLY(self, codegen, lhs, rhs):
-    #     return codegen.builder.fmul(lhs, rhs)
+    def impl_Div(self, codegen, lhs, rhs):
+        lhs_l, rhs_l = _op(codegen, lhs, rhs)
+        return codegen.builder.fdiv(lhs_l, rhs_l)     
 
-    # def impl_BINARY_TRUE_DIVIDE(self, codegen, lhs, rhs):
-    #     return codegen.builder.fdiv(lhs, rhs)
+    def impl_USub(self, codegen, lhs):
+        lhs_l = codegen.val(lhs)
+        return codegen.builder.fsub(ir.Constant(lhs_l.type, 0.0), lhs_l)
 
     # def impl_BINARY_MODULO(self, codegen, lhs, rhs):
     #     return codegen.builder.frem(lhs, rhs)
@@ -132,6 +127,7 @@ class Float(BaseFloat):
 
     def to_ctype(self):
         return ctypes.c_float
+
 
     j_type = ir.FloatType
 
