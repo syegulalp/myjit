@@ -80,8 +80,6 @@ class SignedInteger(BaseInteger):
         lhs_l, rhs_l = _op(codegen, lhs, rhs)
         return codegen.builder.icmp_signed("==", lhs_l, rhs_l)
 
-    # def impl_COMPARE_OP(self, codegen, lhs, rhs, op):
-    #     return codegen.builder.icmp_signed(op, lhs, rhs)
 
 
 class UnsignedInteger(BaseInteger):
@@ -115,9 +113,10 @@ class BaseFloat(PrimitiveType):
         lhs_l = codegen.val(lhs)
         return codegen.builder.fsub(ir.Constant(lhs_l.type, 0.0), lhs_l)
 
-    # def impl_COMPARE_OP(self, codegen, lhs, rhs, op):
-    #     return codegen.builder.fcmp_unordered(op, lhs, rhs)
-    #     # unordered implies either operand could be a QNAN
+    def impl_Eq(self, codegen, lhs, rhs):
+        lhs_l, rhs_l = _op(codegen, lhs, rhs)
+        return codegen.builder.fcmp_unordered("==", lhs_l, rhs_l)
+
 
 
 class Float(BaseFloat):
