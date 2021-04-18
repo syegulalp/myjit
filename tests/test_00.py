@@ -11,7 +11,7 @@ def zero():
     return 0
 
 
-class TestBasics(unittest.TestCase):
+class Test(unittest.TestCase):
     def test_return_constant(self):
         self.assertEqual(void(), None)
         self.assertEqual(zero(), 0)
