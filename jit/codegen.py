@@ -61,6 +61,7 @@ class Codegen:
 
     def visit_FunctionDef(self, node: ast.FunctionDef):
         self.argtypes = []
+        self.break_stack = []
 
         self.type_data: dict = {}
 
@@ -193,5 +194,46 @@ class Codegen:
         result = op(self, lhs, rhs)
         return JitObj(u1, result, node)
 
+    def visit_If(self, node:ast.If):
+        then_block = self.builder.append_basic_block('then')
+        else_block = self.builder.append_basic_block('else')
+        end_block = self.builder.append_basic_block('end')
+
+        test_clause = self.codegen(node.test)
+        test_clause_llvm = self.val(test_clause)        
+        self.builder.cbranch(test_clause_llvm, then_block, else_block)
+
+        self.builder.position_at_start(then_block)
+        for n in node.body:
+            self.codegen(n)
+        if not self.builder.block.is_terminated:
+            self.builder.branch(end_block)
+        
+        self.builder.position_at_start(else_block)
+        for n in node.orelse:
+            self.codegen(n)
+        if not self.builder.block.is_terminated:
+            self.builder.branch(end_block)
+        self.builder.position_at_start(end_block)
+               
+    def visit_While(self, node:ast.While):
+        loop_block = self.builder.append_basic_block('while')
+        end_block = self.builder.append_basic_block('end_while')
+        self.break_stack.append(end_block)
+
+        self.builder.branch(loop_block)
+        self.builder.position_at_start(loop_block)
+        for n in node.body:
+            self.codegen(n)
+        test_clause = self.codegen(node.test)
+        test_clause_llvm = self.val(test_clause)        
+        self.builder.cbranch(test_clause_llvm, loop_block, end_block)
+        self.builder.position_at_start(end_block)
+
+    def visit_Break(self, node:ast.Break):
+        if not self.break_stack:
+            raise Exception("break encountered outside of loop")
+        break_target = self.break_stack.pop()
+        self.builder.branch(break_target)
 
 codegen = Codegen()
