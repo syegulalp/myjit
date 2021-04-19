@@ -7,6 +7,8 @@ from llvmlite.ir.types import VoidType
 from .j_types import *
 from collections import namedtuple
 
+from typing import Union
+
 JitObj = namedtuple("JitObj", "j_type, llvm, obj")
 
 
@@ -149,9 +151,15 @@ class Codegen:
             raise Exception("undefined var")
         return var_ref
 
-    def visit_Assign(self, node: ast.Assign):
+    def visit_Assign(self, node: Union[ast.Assign, ast.AnnAssign]):
         # TODO: allow multiple assign
-        varname: ast.Name = node.targets[0]
+        if isinstance(node,ast.AnnAssign):
+            varname: ast.Name = node.target
+            #annotation = node.annotation
+            #print (annotation)
+            # attempt to perform module attribute lookup on annotation chain
+        else:
+            varname: ast.Name = node.targets[0]
 
         value = self.codegen(node.value)
         var_ref = self.vars.get(varname.id)
@@ -162,6 +170,19 @@ class Codegen:
         else:
             ref = var_ref.llvm
         return self.builder.store(value.llvm, ref)
+
+    def visit_AugAssign(self, node: ast.AugAssign):
+        binop = ast.BinOp(
+            left = node.target,
+            right = node.value,
+            op=node.op
+        )
+        assignment = ast.Assign(
+            targets = [node.target],
+            value = binop
+        )
+        return self.codegen(assignment)
+        
 
     def visit_BinOp(self, node: ast.BinOp):
         lhs = self.codegen(node.left)
@@ -194,13 +215,13 @@ class Codegen:
         result = op(self, lhs, rhs)
         return JitObj(u1, result, node)
 
-    def visit_If(self, node:ast.If):
-        then_block = self.builder.append_basic_block('then')
-        else_block = self.builder.append_basic_block('else')
-        end_block = self.builder.append_basic_block('end')
+    def visit_If(self, node: ast.If):
+        then_block = self.builder.append_basic_block("then")
+        else_block = self.builder.append_basic_block("else")
+        end_block = self.builder.append_basic_block("end")
 
         test_clause = self.codegen(node.test)
-        test_clause_llvm = self.val(test_clause)        
+        test_clause_llvm = self.val(test_clause)
         self.builder.cbranch(test_clause_llvm, then_block, else_block)
 
         self.builder.position_at_start(then_block)
@@ -208,17 +229,17 @@ class Codegen:
             self.codegen(n)
         if not self.builder.block.is_terminated:
             self.builder.branch(end_block)
-        
+
         self.builder.position_at_start(else_block)
         for n in node.orelse:
             self.codegen(n)
         if not self.builder.block.is_terminated:
             self.builder.branch(end_block)
         self.builder.position_at_start(end_block)
-               
-    def visit_While(self, node:ast.While):
-        loop_block = self.builder.append_basic_block('while')
-        end_block = self.builder.append_basic_block('end_while')
+
+    def visit_While(self, node: ast.While):
+        loop_block = self.builder.append_basic_block("while")
+        end_block = self.builder.append_basic_block("end_while")
         self.break_stack.append(end_block)
 
         self.builder.branch(loop_block)
@@ -226,14 +247,19 @@ class Codegen:
         for n in node.body:
             self.codegen(n)
         test_clause = self.codegen(node.test)
-        test_clause_llvm = self.val(test_clause)        
+        test_clause_llvm = self.val(test_clause)
         self.builder.cbranch(test_clause_llvm, loop_block, end_block)
         self.builder.position_at_start(end_block)
 
-    def visit_Break(self, node:ast.Break):
+    def visit_Break(self, node: ast.Break):
         if not self.break_stack:
             raise Exception("break encountered outside of loop")
         break_target = self.break_stack.pop()
         self.builder.branch(break_target)
+
+    def visit_AnnAssign(self, node: ast.AnnAssign):
+        print (node.__dict__)
+        self.visit_Assign(node)
+
 
 codegen = Codegen()
