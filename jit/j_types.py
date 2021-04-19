@@ -212,3 +212,9 @@ class ArrayType(JitType):
 
 def array(base_type, dimensions):
     return ArrayType(base_type, dimensions)
+
+
+type_conversions = {
+    int: i64,
+    float: f64
+}

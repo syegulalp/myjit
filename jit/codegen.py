@@ -1,6 +1,6 @@
 from llvmlite import ir
 import sys
-import ast, inspect
+import ast, inspect, builtins
 import pprint
 
 from llvmlite.ir.types import VoidType
@@ -62,7 +62,20 @@ class Codegen:
             self.codegen(module_node)
 
     def visit_FunctionDef(self, node: ast.FunctionDef):
+
         self.argtypes = []
+
+        for argument in node.args.args:
+            if not argument.annotation:
+                raise Exception(f"Arg {argument.arg} not annotated")            
+            arg_type = getattr(self.py_module, argument.annotation.id, None)
+            if not arg_type:
+                arg_type = getattr(builtins, argument.annotation.id, None)
+            if not arg_type:
+                raise Exception("annotation not found")
+            arg_type=type_conversions[arg_type]
+            self.argtypes.append(arg_type)
+
         self.break_stack = []
 
         self.type_data: dict = {}
@@ -76,7 +89,7 @@ class Codegen:
         function_returntype = (
             ir.VoidType() if self.return_type is void else self.return_type
         )
-        self.functiontype = ir.FunctionType(function_returntype, [], False)
+        self.functiontype = ir.FunctionType(function_returntype, [x.llvm for x in self.argtypes], False)
         self.function = ir.Function(self.module, self.functiontype, node.name)
         self.function.return_jtype = self.return_type
         self.builder = ir.IRBuilder()
@@ -95,10 +108,15 @@ class Codegen:
         else:
             self.return_value = void
 
-        self.setup_exit = self.builder.branch(self.entry_block)
-        self.builder.position_at_start(self.entry_block)
-
         self.vars = {}
+        
+        for func_argument, argument, argtype in zip(self.function.args, node.args.args, self.argtypes):
+            self.vars[argument.arg] = JitObj(argtype, func_argument, argument)
+        
+        self.setup_exit = self.builder.branch(self.entry_block)
+        self.builder.position_at_start(self.entry_block)        
+
+        
 
         for instruction in node.body:
             self.codegen(instruction)
@@ -124,7 +142,7 @@ class Codegen:
             if not self.type_unset:
                 raise Exception("too many return type redefinitions")
             self.return_type = return_value.j_type
-            self.functiontype = ir.FunctionType(llvm.type, [], False)
+            self.functiontype = ir.FunctionType(llvm.type, [x.llvm for x in self.argtypes], False)
             self.function.type = ir.PointerType(self.functiontype)
             self.function.ftype = self.functiontype
             self.function.return_value.type = llvm.type
@@ -142,13 +160,10 @@ class Codegen:
 
     def visit_Constant(self, node: ast.Constant):
         val = node.value
-        result = None
-        if isinstance(val, int):
-            result = JitObj(i64, ir.Constant(i64.llvm, val), node)
-        elif isinstance(val, float):
-            result = JitObj(f64, ir.Constant(f64.llvm, val), node)
-        if not result:
+        type_to_use = type_conversions.get(val.__class__)
+        if not type_to_use:
             raise Exception("type not supported", type(node.value))
+        result = JitObj(type_to_use, ir.Constant(type_to_use.llvm, val), node)
         return result
 
     def visit_Name(self, node: ast.Name):

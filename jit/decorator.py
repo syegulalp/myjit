@@ -14,6 +14,6 @@ def jit(func):
             raise e
         c1 = jitengine.compile(c, entry_point=func.__name__)
         func._jit = c1
-        return c1()
+        return c1(*a, **ka)
 
     return wrapper
