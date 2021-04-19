@@ -1,13 +1,15 @@
 from .engine import jitengine
-
+from .codegen import codegen as c
 
 def jit(func):
-    from .codegen import codegen as c
-
-    c.codegen_all(func)
-    f = jitengine.compile(c, entry_point=func.__name__)
-
+    
     def wrapper(*a, **ka):
-        return f()
+        try:
+            return func._jit()
+        except AttributeError:
+            c.codegen_all(func)
+            c1 = jitengine.compile(c, entry_point=func.__name__)
+            func._jit = c1
+            return c1()
 
     return wrapper
