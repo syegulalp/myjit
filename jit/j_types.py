@@ -109,6 +109,9 @@ class UnsignedInteger(BaseInteger):
 class BaseFloat(PrimitiveType):
     signed = True
 
+    def __repr__(self):
+        return f'<{"Un" if not self.signed else ""}signed u{self.size}>'
+
     def __init__(self):
         self.llvm = self.j_type()
 

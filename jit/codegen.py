@@ -95,7 +95,7 @@ class Codegen:
         else:
             self.return_value = void
 
-        self.builder.branch(self.entry_block)
+        self.setup_exit = self.builder.branch(self.entry_block)
         self.builder.position_at_start(self.entry_block)
 
         self.vars = {}
@@ -117,12 +117,12 @@ class Codegen:
         if node.value is None:
             return
 
-        return_value = self.codegen(node.value)
+        return_value:JitObj = self.codegen(node.value)
         llvm = self.val(return_value)
 
         if return_value.j_type != self.return_type:
             if not self.type_unset:
-                raise Exception("return type redefinition")
+                raise Exception("too many return type redefinitions")
             self.return_type = return_value.j_type
             self.functiontype = ir.FunctionType(llvm.type, [], False)
             self.function.type = ir.PointerType(self.functiontype)
@@ -130,19 +130,25 @@ class Codegen:
             self.function.return_value.type = llvm.type
             self.function.return_jtype = return_value.j_type
             self.type_unset = False
-            self.return_value = JitObj(
-                self.return_type, self.builder.alloca(self.return_type.llvm), None
-            )
+
+            with self.builder.goto_block(self.entry_block):
+                self.builder.position_before(self.setup_exit)
+                self.return_value = JitObj(
+                    self.return_type, self.builder.alloca(self.return_type.llvm), None
+                )
 
         self.builder.store(llvm, self.return_value.llvm)
         self.builder.branch(self.exit_block)
 
     def visit_Constant(self, node: ast.Constant):
         val = node.value
+        result = None
         if isinstance(val, int):
-            result = JitObj(i64, ir.Constant(i64.llvm, val), val)
+            result = JitObj(i64, ir.Constant(i64.llvm, val), node)
         elif isinstance(val, float):
-            result = JitObj(f64, ir.Constant(f64.llvm, val), val)
+            result = JitObj(f64, ir.Constant(f64.llvm, val), node)
+        if not result:
+            raise Exception("type not supported", type(node.value))
         return result
 
     def visit_Name(self, node: ast.Name):
@@ -153,65 +159,81 @@ class Codegen:
 
     def visit_Assign(self, node: Union[ast.Assign, ast.AnnAssign]):
         # TODO: allow multiple assign
-        if isinstance(node,ast.AnnAssign):
+        if isinstance(node, ast.AnnAssign):
             varname: ast.Name = node.target
-            #annotation = node.annotation
-            #print (annotation)
+            # annotation = node.annotation
+            # print (annotation)
             # attempt to perform module attribute lookup on annotation chain
         else:
             varname: ast.Name = node.targets[0]
 
-        value = self.codegen(node.value)
-        var_ref = self.vars.get(varname.id)
+        value: JitObj = self.codegen(node.value)
+        var_ref: JitObj = self.vars.get(varname.id)
+
         if not var_ref:
-            var_ref = self.builder.alloca(value.j_type.llvm)
-            self.vars[varname.id] = JitObj(value.j_type, var_ref, varname)
-            ref = var_ref
+            alloc = self.builder.alloca(value.j_type.llvm)
+            ref = JitObj(value.j_type, alloc, varname)
+            self.vars[varname.id] = ref
         else:
-            ref = var_ref.llvm
-        return self.builder.store(value.llvm, ref)
+            ref = var_ref
+
+        if ref.j_type != value.j_type:
+            raise Exception("mismatched types:", ref.j_type, value.j_type)
+
+        ref_llvm = ref.llvm
+        return self.builder.store(value.llvm, ref_llvm)
 
     def visit_AugAssign(self, node: ast.AugAssign):
-        binop = ast.BinOp(
-            left = node.target,
-            right = node.value,
-            op=node.op
-        )
-        assignment = ast.Assign(
-            targets = [node.target],
-            value = binop
-        )
+        binop = ast.BinOp(left=node.target, right=node.value, op=node.op)
+        assignment = ast.Assign(targets=[node.target], value=binop)
         return self.codegen(assignment)
-        
+
+    def visit_AnnAssign(self, node: ast.AnnAssign):
+        self.visit_Assign(node)
 
     def visit_BinOp(self, node: ast.BinOp):
-        lhs = self.codegen(node.left)
-        rhs = self.codegen(node.right)
+        lhs:JitObj = self.codegen(node.left)
+        rhs:JitObj = self.codegen(node.right)
+        
         optype = node.op.__class__.__name__
         op = getattr(lhs.j_type, f"impl_{optype}", None)
         if not op:
             raise Exception("Op not supported", optype)
+        
+        if lhs.j_type != rhs.j_type:
+            raise Exception("mismatched types for op:", lhs.j_type, rhs.j_type)
+            
         result = op(self, lhs, rhs)
         return JitObj(lhs.j_type, result, node)
 
     def visit_UnaryOp(self, node: ast.UnaryOp):
-        lhs = self.codegen(node.operand)
+        
+        lhs:JitObj = self.codegen(node.operand)
+        
         optype = node.op.__class__.__name__
         op = getattr(lhs.j_type, f"impl_{optype}", None)
         if not op:
             raise Exception("Op not supported", optype)
+        
         result = op(self, lhs)
         return JitObj(lhs.j_type, result, node)
 
     def visit_Compare(self, node: ast.Compare):
+        
         # TODO: multi-comparison
         # maybe unpack that to if x==y and y==z
-        lhs = self.codegen(node.left)
-        rhs = self.codegen(node.comparators[0])
-        optype = node.ops[0].__class__.__name__
+
+        lhs:JitObj = self.codegen(node.left)
+        rhs:JitObj = self.codegen(node.comparators[0])
+        
+        optype = node.ops[0].__class__.__name__        
         op = getattr(lhs.j_type, f"impl_{optype}", None)
         if not op:
             raise Exception("Op not supported", optype)
+        
+        if lhs.j_type != rhs.j_type:
+            raise Exception("mismatched types for op:", lhs.j_type, rhs.j_type)
+        
         result = op(self, lhs, rhs)
         return JitObj(u1, result, node)
 
@@ -256,10 +278,6 @@ class Codegen:
             raise Exception("break encountered outside of loop")
         break_target = self.break_stack.pop()
         self.builder.branch(break_target)
-
-    def visit_AnnAssign(self, node: ast.AnnAssign):
-        print (node.__dict__)
-        self.visit_Assign(node)
 
 
 codegen = Codegen()
