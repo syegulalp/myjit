@@ -25,6 +25,7 @@ def eq4():
     x = 1.0
     return x == 2.0
 
+
 @jit
 def neq1():
     x = 1
@@ -47,6 +48,7 @@ def neq3():
 def neq4():
     x = 1.0
     return x != 1.0
+
 
 class Test(unittest.TestCase):
     def test_return_constant(self):

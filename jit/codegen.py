@@ -9,7 +9,33 @@ from collections import namedtuple
 
 from typing import Union
 
-JitObj = namedtuple("JitObj", "j_type, llvm, obj")
+
+class JitObj:
+    def __init__(self, j_type, llvm, obj):
+        self.j_type = j_type
+        self.llvm = llvm
+        self.obj = obj
+
+    def reify_type(self, other):
+        pass
+
+
+class AttrLookup:
+    pass
+    # Get an Attribute object and a namespace, and attempt to
+    # return the object it points to
+
+
+class TypeTarget:
+    def __init__(self, tt_list, type_target):
+        self.tt_list = tt_list
+        self.tt_list.append(type_target)
+
+    def __enter__(self):
+        pass
+
+    def __exit__(self, *a):
+        self.tt_list.pop()
 
 
 class Codegen:
@@ -23,7 +49,7 @@ class Codegen:
         return llvm
 
     def codegen_all(self, code_obj):
-
+        
         # String name of the module this function lives in
         self.py_module_name: str = code_obj.__module__
         # Reference to module object that hosts function
@@ -61,26 +87,35 @@ class Codegen:
         for module_node in node.body:
             self.codegen(module_node)
 
+    def type_target(self, tt):
+        return TypeTarget(self.type_targets, tt)
+
     def visit_FunctionDef(self, node: ast.FunctionDef):
 
+        self.type_targets = []
+        self.break_stack = []
         self.argtypes = []
 
         for argument in node.args.args:
             if not argument.annotation:
-                raise Exception(f"Arg {argument.arg} not annotated")            
-            arg_type = getattr(self.py_module, argument.annotation.id, None)
-            if not arg_type:
-                arg_type = getattr(builtins, argument.annotation.id, None)
+                raise Exception(f"Arg {argument.arg} not annotated")
+
+            item = ast.unparse(argument.annotation)
+            arg_type = eval(item, self.py_module.__dict__)
+
             if not arg_type:
                 raise Exception("annotation not found")
-            arg_type=type_conversions[arg_type]
+
+            if not isinstance(arg_type, PrimitiveType):
+                arg_type = type_conversions[arg_type]
+            
             self.argtypes.append(arg_type)
 
-        self.break_stack = []
-
         self.type_data: dict = {}
-
         self.type_unset: bool = False
+
+        # set return type from annotation if available
+
         self.return_type: PrimitiveType = self.type_data.get("return", None)
         if not self.return_type:
             self.type_unset = True
@@ -89,7 +124,9 @@ class Codegen:
         function_returntype = (
             ir.VoidType() if self.return_type is void else self.return_type
         )
-        self.functiontype = ir.FunctionType(function_returntype, [x.llvm for x in self.argtypes], False)
+        self.functiontype = ir.FunctionType(
+            function_returntype, [x.llvm for x in self.argtypes], False
+        )
         self.function = ir.Function(self.module, self.functiontype, node.name)
         self.function.return_jtype = self.return_type
         self.builder = ir.IRBuilder()
@@ -103,20 +140,20 @@ class Codegen:
 
         if self.return_type is not void:
             self.return_value = JitObj(
-                self.return_type, self.builder.alloca(self.return_type.llvm), None
+                self.return_type, self.return_type.alloca(self), None
             )
         else:
             self.return_value = void
 
         self.vars = {}
-        
-        for func_argument, argument, argtype in zip(self.function.args, node.args.args, self.argtypes):
-            self.vars[argument.arg] = JitObj(argtype, func_argument, argument)
-        
-        self.setup_exit = self.builder.branch(self.entry_block)
-        self.builder.position_at_start(self.entry_block)        
 
-        
+        for func_argument, argument, argtype in zip(
+            self.function.args, node.args.args, self.argtypes
+        ):
+            self.vars[argument.arg] = JitObj(argtype, func_argument, argument)
+
+        self.setup_exit = self.builder.branch(self.entry_block)
+        self.builder.position_at_start(self.entry_block)
 
         for instruction in node.body:
             self.codegen(instruction)
@@ -135,14 +172,16 @@ class Codegen:
         if node.value is None:
             return
 
-        return_value:JitObj = self.codegen(node.value)
+        return_value: JitObj = self.codegen(node.value)
         llvm = self.val(return_value)
 
         if return_value.j_type != self.return_type:
             if not self.type_unset:
                 raise Exception("too many return type redefinitions")
             self.return_type = return_value.j_type
-            self.functiontype = ir.FunctionType(llvm.type, [x.llvm for x in self.argtypes], False)
+            self.functiontype = ir.FunctionType(
+                llvm.type, [x.llvm for x in self.argtypes], False
+            )
             self.function.type = ir.PointerType(self.functiontype)
             self.function.ftype = self.functiontype
             self.function.return_value.type = llvm.type
@@ -152,7 +191,7 @@ class Codegen:
             with self.builder.goto_block(self.entry_block):
                 self.builder.position_before(self.setup_exit)
                 self.return_value = JitObj(
-                    self.return_type, self.builder.alloca(self.return_type.llvm), None
+                    self.return_type, self.return_type.alloca(self), None
                 )
 
         self.builder.store(llvm, self.return_value.llvm)
@@ -160,10 +199,15 @@ class Codegen:
 
     def visit_Constant(self, node: ast.Constant):
         val = node.value
-        type_to_use = type_conversions.get(val.__class__)
-        if not type_to_use:
+        default_type_to_use = type_conversions.get(val.__class__)
+        if not default_type_to_use:
             raise Exception("type not supported", type(node.value))
-        result = JitObj(type_to_use, ir.Constant(type_to_use.llvm, val), node)
+        if self.type_targets:
+            default_type_to_use = self.type_targets[0]
+        result = JitObj(
+            default_type_to_use, ir.Constant(default_type_to_use.llvm, val), node
+        )
+
         return result
 
     def visit_Name(self, node: ast.Name):
@@ -176,9 +220,6 @@ class Codegen:
         # TODO: allow multiple assign
         if isinstance(node, ast.AnnAssign):
             varname: ast.Name = node.target
-            # annotation = node.annotation
-            # print (annotation)
-            # attempt to perform module attribute lookup on annotation chain
         else:
             varname: ast.Name = node.targets[0]
 
@@ -186,7 +227,8 @@ class Codegen:
         var_ref: JitObj = self.vars.get(varname.id)
 
         if not var_ref:
-            alloc = self.builder.alloca(value.j_type.llvm)
+            alloc = value.j_type.alloca(self)
+            # self.builder.alloca(value.j_type.llvm)
             ref = JitObj(value.j_type, alloc, varname)
             self.vars[varname.id] = ref
         else:
@@ -207,48 +249,50 @@ class Codegen:
         self.visit_Assign(node)
 
     def visit_BinOp(self, node: ast.BinOp):
-        lhs:JitObj = self.codegen(node.left)
-        rhs:JitObj = self.codegen(node.right)
-        
+        lhs: JitObj = self.codegen(node.left)
+
+        with self.type_target(lhs.j_type):
+            rhs: JitObj = self.codegen(node.right)
+
         optype = node.op.__class__.__name__
         op = getattr(lhs.j_type, f"impl_{optype}", None)
         if not op:
             raise Exception("Op not supported", optype)
-        
+
         if lhs.j_type != rhs.j_type:
             raise Exception("mismatched types for op:", lhs.j_type, rhs.j_type)
-            
+
         result = op(self, lhs, rhs)
         return JitObj(lhs.j_type, result, node)
 
     def visit_UnaryOp(self, node: ast.UnaryOp):
-        
-        lhs:JitObj = self.codegen(node.operand)
-        
+
+        lhs: JitObj = self.codegen(node.operand)
+
         optype = node.op.__class__.__name__
         op = getattr(lhs.j_type, f"impl_{optype}", None)
         if not op:
             raise Exception("Op not supported", optype)
-        
+
         result = op(self, lhs)
         return JitObj(lhs.j_type, result, node)
 
     def visit_Compare(self, node: ast.Compare):
-        
+
         # TODO: multi-comparison
         # maybe unpack that to if x==y and y==z
 
-        lhs:JitObj = self.codegen(node.left)
-        rhs:JitObj = self.codegen(node.comparators[0])
-        
-        optype = node.ops[0].__class__.__name__        
+        lhs: JitObj = self.codegen(node.left)
+        rhs: JitObj = self.codegen(node.comparators[0])
+
+        optype = node.ops[0].__class__.__name__
         op = getattr(lhs.j_type, f"impl_{optype}", None)
         if not op:
             raise Exception("Op not supported", optype)
-        
+
         if lhs.j_type != rhs.j_type:
             raise Exception("mismatched types for op:", lhs.j_type, rhs.j_type)
-        
+
         result = op(self, lhs, rhs)
         return JitObj(u1, result, node)
 

@@ -11,7 +11,7 @@ def gt1():
 @jit
 def gt2():
     x = 1
-    return x >1
+    return x > 1
 
 
 @jit
@@ -24,6 +24,7 @@ def gt3():
 def gt4():
     x = 1.0
     return x > 1.0
+
 
 @jit
 def gt5():
@@ -46,7 +47,7 @@ def gt7():
 @jit
 def gt8():
     x = 1.0
-    return x >= 2.0    
+    return x >= 2.0
 
 
 class Test(unittest.TestCase):
@@ -58,4 +59,4 @@ class Test(unittest.TestCase):
         self.assertEqual(gt5(), True)
         self.assertEqual(gt6(), False)
         self.assertEqual(gt7(), True)
-        self.assertEqual(gt8(), False)        
+        self.assertEqual(gt8(), False)

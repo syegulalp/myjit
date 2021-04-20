@@ -20,6 +20,8 @@ Right now very few operations are supported. The JIT can only perform basic arit
 
 # Quickstart
 
+> NOTE: Python 3.9+ is required, due to some functions in the `ast` module only being available there.
+
 Clone the repo and install requirements from `requirements.txt`.
 
 The test suite (run `python .\tests\`) should run through the complete feature set.

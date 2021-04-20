@@ -5,6 +5,9 @@ from llvmlite import ir
 class JitType:
     llvm = None
 
+    def alloca(self):
+        raise NotImplementedError
+
 
 class Void(JitType):
     llvm = ir.VoidType()
@@ -24,6 +27,9 @@ class PrimitiveType(JitType):
     def __repr__(self):
         return f'<{"Un" if not self.signed else ""}signed i{self.size}>'
 
+    def alloca(self, codegen):
+        return codegen.builder.alloca(self.llvm)
+
 
 def _op(codegen, lhs, rhs):
     return codegen.val(lhs), codegen.val(rhs)
@@ -34,8 +40,8 @@ class BaseInteger(PrimitiveType):
     j_type = ir.IntType
 
     _from_ctype = {
-        True: {64: ctypes.c_int64},
-        False: {64: ctypes.c_uint64, 1: ctypes.c_bool},
+        True: {64: ctypes.c_int64, 32: ctypes.c_int32, 16: ctypes.c_int16, 8: ctypes.c_int8},
+        False: {64: ctypes.c_uint64, 32:ctypes.c_uint32, 16: ctypes.c_uint16, 8: ctypes.c_uint8, 1: ctypes.c_bool},
     }
 
     def to_ctype(self):
@@ -214,7 +220,4 @@ def array(base_type, dimensions):
     return ArrayType(base_type, dimensions)
 
 
-type_conversions = {
-    int: i64,
-    float: f64
-}
+type_conversions = {int: i64, float: f64}

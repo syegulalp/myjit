@@ -1,8 +1,8 @@
 from .engine import jitengine
 from .codegen import codegen as c
 
+
 def jit(func):
-    
     def wrapper(*a, **ka):
         try:
             return func._jit()

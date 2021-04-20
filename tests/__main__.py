@@ -14,3 +14,12 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+# TODO (For implemented features)
+# type inference tests
+# signed/unsigned versions
+# error trapping for type mismatches
+
+# eventually:
+# programmatic generation of tests

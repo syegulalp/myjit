@@ -11,7 +11,7 @@ def lt1():
 @jit
 def lt2():
     x = 1
-    return x <0
+    return x < 0
 
 
 @jit
