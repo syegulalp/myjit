@@ -49,7 +49,7 @@ class Codegen:
         return llvm
 
     def codegen_all(self, code_obj):
-        
+
         # String name of the module this function lives in
         self.py_module_name: str = code_obj.__module__
         # Reference to module object that hosts function
@@ -108,7 +108,7 @@ class Codegen:
 
             if not isinstance(arg_type, PrimitiveType):
                 arg_type = type_conversions[arg_type]
-            
+
             self.argtypes.append(arg_type)
 
         self.type_data: dict = {}

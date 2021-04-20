@@ -40,8 +40,19 @@ class BaseInteger(PrimitiveType):
     j_type = ir.IntType
 
     _from_ctype = {
-        True: {64: ctypes.c_int64, 32: ctypes.c_int32, 16: ctypes.c_int16, 8: ctypes.c_int8},
-        False: {64: ctypes.c_uint64, 32:ctypes.c_uint32, 16: ctypes.c_uint16, 8: ctypes.c_uint8, 1: ctypes.c_bool},
+        True: {
+            64: ctypes.c_int64,
+            32: ctypes.c_int32,
+            16: ctypes.c_int16,
+            8: ctypes.c_int8,
+        },
+        False: {
+            64: ctypes.c_uint64,
+            32: ctypes.c_uint32,
+            16: ctypes.c_uint16,
+            8: ctypes.c_uint8,
+            1: ctypes.c_bool,
+        },
     }
 
     def to_ctype(self):
