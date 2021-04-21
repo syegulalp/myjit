@@ -98,13 +98,13 @@ class Codegen:
 
         for argument in node.args.args:
             if not argument.annotation:
-                raise Exception(f"Arg {argument.arg} not annotated")
+                raise TypeError(f"Arg {argument.arg} not annotated")
 
             item = ast.unparse(argument.annotation)
             arg_type = eval(item, self.py_module.__dict__)
 
             if not arg_type:
-                raise Exception("annotation not found")
+                raise TypeError("annotation not found")
 
             if not isinstance(arg_type, PrimitiveType):
                 arg_type = type_conversions[arg_type]

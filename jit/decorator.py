@@ -5,7 +5,7 @@ from .codegen import codegen as c
 def jit(func):
     def wrapper(*a, **ka):
         try:
-            return func._jit()
+            return func._jit(*a, **ka)
         except AttributeError:
             pass
         try:
@@ -15,5 +15,7 @@ def jit(func):
         c1 = jitengine.compile(c, entry_point=func.__name__)
         func._jit = c1
         return c1(*a, **ka)
+
+    wrapper.f = func
 
     return wrapper

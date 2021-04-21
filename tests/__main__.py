@@ -17,9 +17,8 @@ if __name__ == "__main__":
 
 
 # TODO (For implemented features)
-# type inference tests
-# signed/unsigned versions
 # error trapping for type mismatches
+# signed/unsigned behaviors
 
 # eventually:
 # programmatic generation of tests
