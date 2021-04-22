@@ -17,7 +17,7 @@ if __name__ == "__main__":
 
 
 # TODO (For implemented features)
+# arrays
 # signed/unsigned behaviors
-
 # eventually:
 # programmatic generation of tests

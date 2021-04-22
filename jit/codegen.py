@@ -157,11 +157,6 @@ class Codegen:
         for func_argument, argument, argtype in zip(
             self.function.args, node.args.args, self.argtypes
         ):
-            # TODO: clumsy
-            # if isinstance(argtype, ObjectType) or isinstance(getattr(argtype,'pointee'), ObjectType):
-            #     unpack = self.builder.load(func_argument)
-            #     self.vars[argument.arg] = JitObj(argtype.pointee, unpack, argument)
-            # else:
             self.vars[argument.arg] = JitObj(argtype, func_argument, argument)
 
         self.setup_exit = self.builder.branch(self.entry_block)
@@ -229,7 +224,6 @@ class Codegen:
         var_ref = self.vars.get(node.id)
         if not var_ref:
             return None
-            #raise Exception("undefined var")
         return var_ref
 
     def visit_Assign(self, node: Union[ast.Assign, ast.AnnAssign]):
@@ -244,21 +238,20 @@ class Codegen:
 
         if var_ref is None:
             tt = var_ref
+
         # TODO: ensure the pointer in question points to an actual variable
-        # we need some way to know this
+        # we need some way to know this!
+
         elif isinstance(var_ref.j_type, PointerType):
             tt = var_ref.j_type.pointee
         else:
             tt = var_ref.j_type
+
         with self.type_target(tt):
             value: JitObj = self.codegen(node.value)
-        
-                
-        #self.vars.get(varname.id)
 
         if not var_ref:
             alloc = value.j_type.alloca(self)
-            # self.builder.alloca(value.j_type.llvm)
             ref = JitObj(value.j_type, alloc, varname)
             self.vars[varname.id] = ref
         else:

@@ -223,10 +223,11 @@ class ObjectType(JitType):
 
 import copy
 
+
 class ArrayType(ObjectType):
     def __init__(self, base_type, dimensions):
 
-        if len(dimensions)>1:
+        if len(dimensions) > 1:
             self.base_type = ArrayType(base_type, dimensions[1:])
             self.dimensions = dimensions[1:]
             self.size = dimensions[0]
@@ -238,20 +239,20 @@ class ArrayType(ObjectType):
             self.llvm = ir.ArrayType(self.base_type.llvm, dimensions[0])
 
         self._a_type = self.base_type.to_ctype() * self.size
-        #self._array = self._a_type()
+        # self._array = self._a_type()
 
     # TODO: separate generation of type from array instance
-    
+
     def __getitem__(self, item):
         return self._array[item]
 
     def __setitem__(self, item, value):
-        self._array[item]=value
-    
+        self._array[item] = value
+
     def to_ctype(self):
         return self._a_type
 
-    def from_jtype(self, value):        
+    def from_jtype(self, value):
         return self._array
 
     def __call__(self):
@@ -269,14 +270,15 @@ class PointerType(JitType):
         self.pointee = pointee
         self.llvm = ir.PointerType(self.pointee.llvm)
 
-    def from_jtype(self, value):        
+    def from_jtype(self, value):
         return ctypes.POINTER(self.pointee.from_jtype())
-    
+
     def to_ctype(self):
         return ctypes.POINTER(self.pointee.to_ctype())
 
     def alloca(self, codegen):
-        return codegen.builder.alloca(self.llvm)        
+        return codegen.builder.alloca(self.llvm)
+
 
 def pointer(pointee):
     return PointerType(pointee)

@@ -5,7 +5,7 @@ from .j_types import JitType, ObjectType
 
 def jit(func):
     def wrapper(*a, **ka):
-        aa=[]
+        aa = []
         for arg in a:
             if isinstance(arg, JitType):
                 aa.append(arg.from_jtype(arg))
@@ -22,7 +22,7 @@ def jit(func):
         c1 = jitengine.compile(c, entry_point=func.__name__)
         func._jit = c1
         result = c1(*aa, **ka)
-        if hasattr(result, 'contents'):
+        if hasattr(result, "contents"):
             return result.contents
         return result
 
