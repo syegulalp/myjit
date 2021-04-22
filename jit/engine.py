@@ -1,6 +1,6 @@
 import llvmlite.binding as llvm
 from ctypes import CFUNCTYPE
-
+from .j_types import PrimitiveType
 
 class JitEngine:
     def __init__(self):
@@ -62,6 +62,7 @@ class JitEngine:
         func = codegen.module.globals[entry_point]
         cfunc = CFUNCTYPE(func.return_jtype.to_ctype(), *arg_types)(func_ptr)
         return cfunc
+
 
     def clear(self):
         self.engine.remove_module(self.mod)

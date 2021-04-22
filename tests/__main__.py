@@ -17,7 +17,6 @@ if __name__ == "__main__":
 
 
 # TODO (For implemented features)
-# error trapping for type mismatches
 # signed/unsigned behaviors
 
 # eventually:

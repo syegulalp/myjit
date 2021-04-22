@@ -97,6 +97,7 @@ class Codegen:
         self.argtypes = []
 
         for argument in node.args.args:
+            converted_arg_type = None
             if not argument.annotation:
                 raise TypeError(f"Arg {argument.arg} not annotated")
 
@@ -107,8 +108,14 @@ class Codegen:
                 raise TypeError("annotation not found")
 
             if not isinstance(arg_type, PrimitiveType):
-                arg_type = type_conversions[arg_type]
+                converted_arg_type = type_conversions(arg_type)
 
+                if converted_arg_type is None:
+                    raise TypeError(f"Type {arg_type} not supported")
+                arg_type = converted_arg_type
+
+            if isinstance(arg_type, ObjectType):
+                arg_type = pointer(arg_type)
             self.argtypes.append(arg_type)
 
         self.type_data: dict = {}
@@ -150,6 +157,11 @@ class Codegen:
         for func_argument, argument, argtype in zip(
             self.function.args, node.args.args, self.argtypes
         ):
+            # TODO: clumsy
+            # if isinstance(argtype, ObjectType) or isinstance(getattr(argtype,'pointee'), ObjectType):
+            #     unpack = self.builder.load(func_argument)
+            #     self.vars[argument.arg] = JitObj(argtype.pointee, unpack, argument)
+            # else:
             self.vars[argument.arg] = JitObj(argtype, func_argument, argument)
 
         self.setup_exit = self.builder.branch(self.entry_block)
@@ -173,6 +185,9 @@ class Codegen:
             return
 
         return_value: JitObj = self.codegen(node.value)
+        if return_value is None:
+            return
+
         llvm = self.val(return_value)
 
         if return_value.j_type != self.return_type:
@@ -199,10 +214,10 @@ class Codegen:
 
     def visit_Constant(self, node: ast.Constant):
         val = node.value
-        default_type_to_use = type_conversions.get(val.__class__)
+        default_type_to_use = type_conversions(val.__class__)
         if not default_type_to_use:
             raise Exception("type not supported", type(node.value))
-        if self.type_targets:
+        if self.type_targets and self.type_targets[0] is not None:
             default_type_to_use = self.type_targets[0]
         result = JitObj(
             default_type_to_use, ir.Constant(default_type_to_use.llvm, val), node
@@ -213,7 +228,8 @@ class Codegen:
     def visit_Name(self, node: ast.Name):
         var_ref = self.vars.get(node.id)
         if not var_ref:
-            raise Exception("undefined var")
+            return None
+            #raise Exception("undefined var")
         return var_ref
 
     def visit_Assign(self, node: Union[ast.Assign, ast.AnnAssign]):
@@ -223,8 +239,22 @@ class Codegen:
         else:
             varname: ast.Name = node.targets[0]
 
-        value: JitObj = self.codegen(node.value)
-        var_ref: JitObj = self.vars.get(varname.id)
+        # TODO: pointer check when recipient
+        var_ref: JitObj = self.codegen(varname)
+
+        if var_ref is None:
+            tt = var_ref
+        # TODO: ensure the pointer in question points to an actual variable
+        # we need some way to know this
+        elif isinstance(var_ref.j_type, PointerType):
+            tt = var_ref.j_type.pointee
+        else:
+            tt = var_ref.j_type
+        with self.type_target(tt):
+            value: JitObj = self.codegen(node.value)
+        
+                
+        #self.vars.get(varname.id)
 
         if not var_ref:
             alloc = value.j_type.alloca(self)
@@ -234,7 +264,10 @@ class Codegen:
         else:
             ref = var_ref
 
-        if ref.j_type != value.j_type:
+        if isinstance(ref.j_type, PointerType):
+            if ref.j_type.pointee != value.j_type:
+                raise Exception("mismatched types:", ref.j_type.pointee, value.j_type)
+        elif ref.j_type != value.j_type:
             raise Exception("mismatched types:", ref.j_type, value.j_type)
 
         ref_llvm = ref.llvm
@@ -337,6 +370,16 @@ class Codegen:
             raise Exception("break encountered outside of loop")
         break_target = self.break_stack.pop()
         self.builder.branch(break_target)
+
+    def visit_Subscript(self, node: ast.Subscript):
+        value = self.codegen(node.value)
+        val_llvm = self.val(value)
+
+        slice = self.codegen(node.slice)
+        index = self.val(slice)
+
+        ptr = self.builder.gep(val_llvm, [ir.Constant(u64.llvm, 0), index])
+        return JitObj(pointer(value.j_type.pointee.base_type), ptr, None)
 
 
 codegen = Codegen()
