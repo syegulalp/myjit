@@ -1,5 +1,4 @@
 from jit import jit, j_types as j
-import array
 
 arr = j.array(j.u8, [2, 32])
 x = arr()
@@ -14,5 +13,5 @@ def main(a: arr):
 
 
 y = main(x)
-print(y[0][0])
-print(y[1][0])
+print(y[0][0]) # 100 instead of 5
+print(y[1][0]) # still 32
