@@ -1,10 +1,11 @@
-from llvmlite import ir
+from llvmlite import ir, binding
 import sys
 import ast, inspect, builtins
 import pprint
 
 from llvmlite.ir.types import VoidType
 from .j_types import *
+from .errors import JitTypeError, BaseJitError
 from collections import namedtuple
 
 from typing import Union
@@ -40,7 +41,8 @@ class TypeTarget:
 
 class Codegen:
     def __init__(self):
-        self.modules = {}
+        self.modules = {}        
+        self.target_data = None
 
     def val(self, obj: JitObj):
         llvm = obj.llvm
@@ -54,11 +56,19 @@ class Codegen:
         self.py_module_name: str = code_obj.__module__
         # Reference to module object that hosts function
         self.py_module = sys.modules.get(self.py_module_name)
-
         self.module: ir.Module = self.modules.get(self.py_module_name)
+
         if not self.module:
             self.module = ir.Module(self.py_module_name)
             self.modules[self.py_module_name] = self.module
+
+        if not self.target_data:
+            self.target_data = binding.create_target_data(self.module.data_layout)
+            self.bitness = ir.PointerType(ir.IntType(8)).get_abi_size(self.target_data) * 8
+            self.mem = ir.IntType(self.bitness)
+            self.mem_ptr = ir.PointerType(self.mem)
+            self.memv = lambda val: ir.Constant(ir.IntType(self.bitness), val)
+            self.zero = self.memv(0)
 
         self.code_obj = code_obj
         self.instructions = ast.parse(inspect.getsource(code_obj))
@@ -71,6 +81,7 @@ class Codegen:
             self.output.write(str(self.module))
 
     def codegen(self, instruction):
+        # print(instruction)
         itype = instruction.__class__.__name__
         self.output.write(f"\n\n>> {itype}\n\n")
         self.output.write(pprint.pformat(instruction.__dict__))
@@ -80,7 +91,7 @@ class Codegen:
             return
         try:
             return call(instruction)
-        except Exception as e:
+        except BaseJitError as e:
             raise e
 
     def visit_Module(self, node: ast.Module):
@@ -89,6 +100,9 @@ class Codegen:
 
     def type_target(self, tt):
         return TypeTarget(self.type_targets, tt)
+
+    def visit_ClassDef(self, node: ast.ClassDef):
+        print(node.__dict__)
 
     def visit_FunctionDef(self, node: ast.FunctionDef):
 
@@ -99,19 +113,19 @@ class Codegen:
         for argument in node.args.args:
             converted_arg_type = None
             if not argument.annotation:
-                raise TypeError(f"Arg {argument.arg} not annotated")
+                raise JitTypeError(f"Arg {argument.arg} not annotated")
 
             item = ast.unparse(argument.annotation)
             arg_type = eval(item, self.py_module.__dict__)
 
             if not arg_type:
-                raise TypeError("annotation not found")
+                raise JitTypeError("annotation not found")
 
             if not isinstance(arg_type, PrimitiveType):
                 converted_arg_type = type_conversions(arg_type)
 
                 if converted_arg_type is None:
-                    raise TypeError(f"Type {arg_type} not supported")
+                    raise JitTypeError(f"Type {arg_type} not supported")
                 arg_type = converted_arg_type
 
             if isinstance(arg_type, ObjectType):
@@ -187,7 +201,7 @@ class Codegen:
 
         if return_value.j_type != self.return_type:
             if not self.type_unset:
-                raise Exception("too many return type redefinitions")
+                raise JitTypeError("too many return type redefinitions")
             self.return_type = return_value.j_type
             self.functiontype = ir.FunctionType(
                 llvm.type, [x.llvm for x in self.argtypes], False
@@ -211,8 +225,10 @@ class Codegen:
         val = node.value
         default_type_to_use = type_conversions(val.__class__)
         if not default_type_to_use:
-            raise Exception("type not supported", type(node.value))
+            raise JitTypeError("type not supported", type(node.value))
         if self.type_targets and self.type_targets[0] is not None:
+            if not isinstance(self.type_targets[0], PrimitiveType):
+                raise JitTypeError("can't coerce", type(node.value))
             default_type_to_use = self.type_targets[0]
         result = JitObj(
             default_type_to_use, ir.Constant(default_type_to_use.llvm, val), node
@@ -259,9 +275,11 @@ class Codegen:
 
         if isinstance(ref.j_type, PointerType):
             if ref.j_type.pointee != value.j_type:
-                raise Exception("mismatched types:", ref.j_type.pointee, value.j_type)
+                raise JitTypeError(
+                    "mismatched types:", ref.j_type.pointee, value.j_type
+                )
         elif ref.j_type != value.j_type:
-            raise Exception("mismatched types:", ref.j_type, value.j_type)
+            raise JitTypeError("mismatched types:", ref.j_type, value.j_type)
 
         ref_llvm = ref.llvm
         return self.builder.store(value.llvm, ref_llvm)
@@ -286,7 +304,7 @@ class Codegen:
             raise Exception("Op not supported", optype)
 
         if lhs.j_type != rhs.j_type:
-            raise Exception("mismatched types for op:", lhs.j_type, rhs.j_type)
+            raise JitTypeError("mismatched types for op:", lhs.j_type, rhs.j_type)
 
         result = op(self, lhs, rhs)
         return JitObj(lhs.j_type, result, node)
@@ -317,7 +335,7 @@ class Codegen:
             raise Exception("Op not supported", optype)
 
         if lhs.j_type != rhs.j_type:
-            raise Exception("mismatched types for op:", lhs.j_type, rhs.j_type)
+            raise JitTypeError("mismatched types for op:", lhs.j_type, rhs.j_type)
 
         result = op(self, lhs, rhs)
         return JitObj(u1, result, node)
@@ -371,7 +389,7 @@ class Codegen:
         slice = self.codegen(node.slice)
         index = self.val(slice)
 
-        ptr = self.builder.gep(val_llvm, [ir.Constant(u64.llvm, 0), index])
+        ptr = self.builder.gep(val_llvm, [self.zero, index])
         return JitObj(pointer(value.j_type.pointee.base_type), ptr, None)
 
 

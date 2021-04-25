@@ -1,5 +1,5 @@
 import unittest
-from jit import jit, j_types as j
+from jit import jit, j_types as j, errors as err
 
 
 @jit
@@ -14,6 +14,6 @@ def add2(a: j.i64, b: j.i64):
 
 class Test(unittest.TestCase):
     def test_return_constant(self):
-        with self.assertRaises(TypeError):
+        with self.assertRaises(err.JitTypeError):
             add1(2, 2.0)
             add2(2.0, 2.0)
