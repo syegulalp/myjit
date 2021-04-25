@@ -3,6 +3,14 @@ from .codegen import codegen as c
 from .j_types import JitType, ObjectType
 
 
+def jit_m(name=None):
+    def fn(func):
+        func._new_name = name
+        return jit(func)
+
+    return fn
+
+
 def jit(func):
     def wrapper(*a, **ka):
         aa = []
