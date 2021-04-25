@@ -14,10 +14,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-# TODO (For implemented features)
-# arrays
-# signed/unsigned behaviors
-# eventually:
-# programmatic generation of tests
