@@ -9,6 +9,9 @@ class JitType:
     def alloca(self):
         raise NotImplementedError
 
+    def slice(self):
+        raise NotImplementedError
+
 
 class Void(JitType):
     llvm = ir.VoidType()
@@ -32,8 +35,6 @@ class PrimitiveType(JitType):
         return codegen.builder.alloca(self.llvm)
 
 
-def _op(codegen, lhs, rhs):
-    return codegen.val(lhs), codegen.val(rhs)
 
 
 class BaseInteger(PrimitiveType):
@@ -59,69 +60,91 @@ class BaseInteger(PrimitiveType):
     def to_ctype(self):
         return self._from_ctype[self.signed][self.size]
 
-    def impl_Add(self, codegen, lhs, rhs):
-        lhs_l, rhs_l = _op(codegen, lhs, rhs)
-        return codegen.builder.add(lhs_l, rhs_l)
+    def impl_Add(self, codegen, lhs, rhs):        
+        return codegen.builder.add(lhs, rhs)
 
-    def impl_Sub(self, codegen, lhs, rhs):
-        lhs_l, rhs_l = _op(codegen, lhs, rhs)
-        return codegen.builder.sub(lhs_l, rhs_l)
+    def impl_Sub(self, codegen, lhs, rhs):        
+        return codegen.builder.sub(lhs, rhs)
 
-    def impl_Mult(self, codegen, lhs, rhs):
-        lhs_l, rhs_l = _op(codegen, lhs, rhs)
-        return codegen.builder.mul(lhs_l, rhs_l)
+    def impl_Mult(self, codegen, lhs, rhs):        
+        return codegen.builder.mul(lhs, rhs)
 
-    def impl_LShift(self, codegen, lhs, rhs):
-        lhs_l, rhs_l = _op(codegen, lhs, rhs)
-        return codegen.builder.shl(lhs_l, rhs_l)
+    def impl_LShift(self, codegen, lhs, rhs):        
+        return codegen.builder.shl(lhs, rhs)
 
-    def impl_RShift(self, codegen, lhs, rhs):
-        lhs_l, rhs_l = _op(codegen, lhs, rhs)
-        return codegen.builder.ashr(lhs_l, rhs_l)
+    def impl_RShift(self, codegen, lhs, rhs):        
+        return codegen.builder.ashr(lhs, rhs)
 
 
 class SignedInteger(BaseInteger):
     signed = True
 
-    def impl_Div(self, codegen, lhs, rhs):
-        lhs_l, rhs_l = _op(codegen, lhs, rhs)
-        return codegen.builder.sdiv(lhs_l, rhs_l)
+    def impl_Div(self, codegen, lhs, rhs):        
+        return codegen.builder.sdiv(lhs, rhs)
 
     def impl_USub(self, codegen, lhs):
-        lhs_l = codegen.val(lhs)
-        return codegen.builder.sub(ir.Constant(lhs_l.type, 0), lhs_l)
+        lhs = codegen.val(lhs)
+        return codegen.builder.sub(ir.Constant(lhs.type, 0), lhs)
 
-    def impl_Mod(self, codegen, lhs, rhs):
-        lhs_l, rhs_l = _op(codegen, lhs, rhs)
-        return codegen.builder.srem(lhs_l, rhs_l)
+    def impl_Mod(self, codegen, lhs, rhs):        
+        b: ir.IRBuilder = codegen.builder
 
-    def impl_Eq(self, codegen, lhs, rhs):
-        lhs_l, rhs_l = _op(codegen, lhs, rhs)
-        return codegen.builder.icmp_signed("==", lhs_l, rhs_l)
+        g1 = b.icmp_signed(">=", lhs, ir.Constant(lhs.type, 0))
 
-    def impl_NotEq(self, codegen, lhs, rhs):
-        lhs_l, rhs_l = _op(codegen, lhs, rhs)
-        return codegen.builder.icmp_signed("!=", lhs_l, rhs_l)
+        g2 = b.urem(lhs, rhs)
 
-    def impl_Gt(self, codegen, lhs, rhs):
-        lhs_l, rhs_l = _op(codegen, lhs, rhs)
-        return codegen.builder.icmp_signed(">", lhs_l, rhs_l)
+        g3a = b.sub(ir.Constant(lhs.type, 0), lhs)
+        g3b = b.urem(g3a, rhs)
+        g3c = b.sub(rhs, g3b)
+        g3d = b.urem(g3c, rhs)
 
-    def impl_Lt(self, codegen, lhs, rhs):
-        lhs_l, rhs_l = _op(codegen, lhs, rhs)
-        return codegen.builder.icmp_signed("<", lhs_l, rhs_l)
+        return b.select(g1, g2, g3d)
 
-    def impl_GtE(self, codegen, lhs, rhs):
-        lhs_l, rhs_l = _op(codegen, lhs, rhs)
-        return codegen.builder.icmp_signed(">=", lhs_l, rhs_l)
+    def impl_Eq(self, codegen, lhs, rhs):        
+        return codegen.builder.icmp_signed("==", lhs, rhs)
 
-    def impl_LtE(self, codegen, lhs, rhs):
-        lhs_l, rhs_l = _op(codegen, lhs, rhs)
-        return codegen.builder.icmp_signed("<=", lhs_l, rhs_l)
+    def impl_NotEq(self, codegen, lhs, rhs):        
+        return codegen.builder.icmp_signed("!=", lhs, rhs)
+
+    def impl_Gt(self, codegen, lhs, rhs):        
+        return codegen.builder.icmp_signed(">", lhs, rhs)
+
+    def impl_Lt(self, codegen, lhs, rhs):        
+        return codegen.builder.icmp_signed("<", lhs, rhs)
+
+    def impl_GtE(self, codegen, lhs, rhs):        
+        return codegen.builder.icmp_signed(">=", lhs, rhs)
+
+    def impl_LtE(self, codegen, lhs, rhs):        
+        return codegen.builder.icmp_signed("<=", lhs, rhs)
 
 
 class UnsignedInteger(BaseInteger):
     signed = False
+
+    def impl_Div(self, codegen, lhs, rhs):        
+        return codegen.builder.udiv(lhs, rhs)
+
+    def impl_Mod(self, codegen, lhs, rhs):        
+        return codegen.builder.urem(lhs, rhs)
+
+    def impl_Eq(self, codegen, lhs, rhs):        
+        return codegen.builder.icmp_unsigned("==", lhs, rhs)
+
+    def impl_NotEq(self, codegen, lhs, rhs):        
+        return codegen.builder.icmp_unsigned("!=", lhs, rhs)
+
+    def impl_Gt(self, codegen, lhs, rhs):        
+        return codegen.builder.icmp_unsigned(">", lhs, rhs)
+
+    def impl_Lt(self, codegen, lhs, rhs):        
+        return codegen.builder.icmp_unsigned("<", lhs, rhs)
+
+    def impl_GtE(self, codegen, lhs, rhs):        
+        return codegen.builder.icmp_unsigned(">=", lhs, rhs)
+
+    def impl_LtE(self, codegen, lhs, rhs):        
+        return codegen.builder.icmp_unsigned("<=", lhs, rhs)
 
 
 class BaseFloat(PrimitiveType):
@@ -133,49 +156,39 @@ class BaseFloat(PrimitiveType):
     def __init__(self):
         self.llvm = self.j_type()
 
-    def impl_Add(self, codegen, lhs, rhs):
-        lhs_l, rhs_l = _op(codegen, lhs, rhs)
-        return codegen.builder.fadd(lhs_l, rhs_l)
+    def impl_Add(self, codegen, lhs, rhs):        
+        return codegen.builder.fadd(lhs, rhs)
 
-    def impl_Sub(self, codegen, lhs, rhs):
-        lhs_l, rhs_l = _op(codegen, lhs, rhs)
-        return codegen.builder.fsub(lhs_l, rhs_l)
+    def impl_Sub(self, codegen, lhs, rhs):        
+        return codegen.builder.fsub(lhs, rhs)
 
-    def impl_Mult(self, codegen, lhs, rhs):
-        lhs_l, rhs_l = _op(codegen, lhs, rhs)
-        return codegen.builder.fmul(lhs_l, rhs_l)
+    def impl_Mult(self, codegen, lhs, rhs):        
+        return codegen.builder.fmul(lhs, rhs)
 
-    def impl_Div(self, codegen, lhs, rhs):
-        lhs_l, rhs_l = _op(codegen, lhs, rhs)
-        return codegen.builder.fdiv(lhs_l, rhs_l)
+    def impl_Div(self, codegen, lhs, rhs):        
+        return codegen.builder.fdiv(lhs, rhs)
 
     def impl_USub(self, codegen, lhs):
-        lhs_l = codegen.val(lhs)
-        return codegen.builder.fsub(ir.Constant(lhs_l.type, 0.0), lhs_l)
+        lhs = codegen.val(lhs)
+        return codegen.builder.fsub(ir.Constant(lhs.type, 0.0), lhs)
 
-    def impl_Eq(self, codegen, lhs, rhs):
-        lhs_l, rhs_l = _op(codegen, lhs, rhs)
-        return codegen.builder.fcmp_unordered("==", lhs_l, rhs_l)
+    def impl_Eq(self, codegen, lhs, rhs):        
+        return codegen.builder.fcmp_unordered("==", lhs, rhs)
 
-    def impl_NotEq(self, codegen, lhs, rhs):
-        lhs_l, rhs_l = _op(codegen, lhs, rhs)
-        return codegen.builder.fcmp_unordered("!=", lhs_l, rhs_l)
+    def impl_NotEq(self, codegen, lhs, rhs):        
+        return codegen.builder.fcmp_unordered("!=", lhs, rhs)
 
-    def impl_Gt(self, codegen, lhs, rhs):
-        lhs_l, rhs_l = _op(codegen, lhs, rhs)
-        return codegen.builder.fcmp_unordered(">", lhs_l, rhs_l)
+    def impl_Gt(self, codegen, lhs, rhs):        
+        return codegen.builder.fcmp_unordered(">", lhs, rhs)
 
-    def impl_Lt(self, codegen, lhs, rhs):
-        lhs_l, rhs_l = _op(codegen, lhs, rhs)
-        return codegen.builder.fcmp_unordered("<", lhs_l, rhs_l)
+    def impl_Lt(self, codegen, lhs, rhs):        
+        return codegen.builder.fcmp_unordered("<", lhs, rhs)
 
-    def impl_GtE(self, codegen, lhs, rhs):
-        lhs_l, rhs_l = _op(codegen, lhs, rhs)
-        return codegen.builder.fcmp_unordered(">=", lhs_l, rhs_l)
+    def impl_GtE(self, codegen, lhs, rhs):        
+        return codegen.builder.fcmp_unordered(">=", lhs, rhs)
 
-    def impl_LtE(self, codegen, lhs, rhs):
-        lhs_l, rhs_l = _op(codegen, lhs, rhs)
-        return codegen.builder.fcmp_unordered("<=", lhs_l, rhs_l)
+    def impl_LtE(self, codegen, lhs, rhs):        
+        return codegen.builder.fcmp_unordered("<=", lhs, rhs)
 
 
 class Float(BaseFloat):
@@ -239,26 +252,31 @@ class ArrayType(ObjectType):
             self.llvm = ir.ArrayType(self.base_type.llvm, dimensions[0])
 
         self._a_type = self.base_type.to_ctype() * self.size
-        # self._array = self._a_type()
 
-    # TODO: separate generation of type from array instance
+    def to_ctype(self):
+        return self._a_type
+
+    def __call__(self):
+        new = Array(self._a_type)
+        return new
+
+    def slice(self):
+        return self.base_type
+
+
+class Array(ArrayType):
+    def __init__(self, array_type):
+        self._a_type = array_type
+        self._array = self._a_type()
+
+    def from_jtype(self, value):
+        return self._array
 
     def __getitem__(self, item):
         return self._array[item]
 
     def __setitem__(self, item, value):
         self._array[item] = value
-
-    def to_ctype(self):
-        return self._a_type
-
-    def from_jtype(self, value):
-        return self._array
-
-    def __call__(self):
-        new = copy.copy(self)
-        new._array = self._a_type()
-        return new
 
 
 def array(base_type, dimensions):
@@ -282,6 +300,14 @@ class PointerType(JitType):
 
 def pointer(pointee):
     return PointerType(pointee)
+
+
+class ObjectPointer(PointerType):
+    pass
+
+
+def objectpointer(pointee):
+    return ObjectPointer(pointee)
 
 
 def type_conversions(type_to_convert):

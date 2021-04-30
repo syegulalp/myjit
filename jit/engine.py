@@ -1,16 +1,16 @@
 import llvmlite.binding as llvm
 from ctypes import CFUNCTYPE
 from .j_types import PrimitiveType
-
+import pathlib
 
 class JitEngine:
     def __init__(self):
         llvm.initialize()
         llvm.initialize_native_target()
         llvm.initialize_native_asmprinter()
-        self.create_execution_engine()
         self.modules = {}
-        self.mod = None
+        self.engines = {}
+        self.engine = None
 
     def create_execution_engine(self):
         # Create a target machine representing the host
@@ -18,14 +18,14 @@ class JitEngine:
         target_machine = target.create_target_machine()
         # And an execution engine with an empty backing module
         backing_mod = llvm.parse_assembly("")
-        self.engine = llvm.create_mcjit_compiler(backing_mod, target_machine)
+        engine = llvm.create_mcjit_compiler(backing_mod, target_machine)
+
         self.pm = llvm.ModulePassManager()
         llvm.PassManagerBuilder().populate(self.pm)
+        return engine
 
     def compile_ir(self, llvm_ir, opt_level=None):
-
         # Create a LLVM module object from the IR
-
         try:
             mod = llvm.parse_assembly(llvm_ir)
             if opt_level:
@@ -54,19 +54,58 @@ class JitEngine:
 
     def compile(self, codegen, opt_level=None, entry_point="main"):
 
-        mod = self.compile_ir(str(codegen.module), opt_level)
+        self.engine = self.engines.get(codegen.py_module_name, None)
+        if self.engine is None:
+            self.engine = self.create_execution_engine()
+
+        do_jit = False
+
+        function_name = codegen.code_obj.__name__
+        if not self.engine.get_function_address(function_name):
+            do_jit = True
+
+        module_file = codegen.py_module.__file__
+        module_path = pathlib.Path(module_file)
+        module_base_path = module_path.parent
+        module_filename = module_path.parts[-1]
+        jit_module_filename = f"{module_filename}.jit"
+        jit_module_path = pathlib.Path(module_base_path, jit_module_filename)
+        
+        if jit_module_path.exists():
+            if jit_module_path.stat().st_mtime < module_path.stat().st_mtime:
+                do_jit = True
+        else:
+            do_jit = True
+        
+        if do_jit:
+            mod = self.compile_ir(str(codegen.module), opt_level)        
+            with open(f"{module_file}.jit", "wb") as f:
+                f.write(mod.as_bitcode())
+        else:
+            with open(f"{module_file}.jit", "rb") as f:
+                bitcode = f.read()
+            mod = llvm.parse_bitcode(bitcode)
+            mod.verify()
+            self.engine.add_module(mod)
+            self.engine.finalize_object()
+            self.engine.run_static_constructors()            
+            
         self.modules[codegen.py_module_name] = mod
-        func_ptr = self.engine.get_function_address(entry_point)
 
         arg_types = [_.to_ctype() for _ in codegen.argtypes]
-
         func = codegen.module.globals[entry_point]
-        cfunc = CFUNCTYPE(func.return_jtype.to_ctype(), *arg_types)(func_ptr)
-        return cfunc
+        cfunctype = CFUNCTYPE(func.return_jtype.to_ctype(), *arg_types)
 
-    def clear(self):
-        self.engine.remove_module(self.mod)
-        self.mod = None
+        eng = self.engine
+
+        def ff(*a, **ka):
+            func_ptr = eng.get_function_address(entry_point)
+            cfunc = cfunctype(func_ptr)
+            return cfunc(*a, **ka)
+
+        ff.restype = func.return_jtype.to_ctype()
+
+        return ff
 
     def load_bc(self, external, module):
         """

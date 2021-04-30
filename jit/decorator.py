@@ -19,14 +19,20 @@ def jit(func):
                 aa.append(arg.from_jtype(arg))
             else:
                 aa.append(arg)
+
         try:
+
             return func._jit(*aa, **ka)
         except AttributeError:
             pass
+
         try:
             c.codegen_all(func)
         except Exception as e:
             raise e
+
+        # TODO: separate compilation from extraction of function
+
         c1 = jitengine.compile(c, entry_point=func.__name__)
         func._jit = c1
         result = c1(*aa, **ka)
@@ -37,3 +43,4 @@ def jit(func):
     wrapper.f = func
 
     return wrapper
+

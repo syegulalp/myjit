@@ -26,6 +26,8 @@ Clone the repo and install requirements from `requirements.txt`.
 
 The test suite (run `python .\tests\`) should run through the complete feature set.
 
+`life.py` provides a simple example, a JIT-accelerated rendition of Conway's Game Of Life. The code used in this example will mature along with the rest of the project.
+
 # License
 
 MIT

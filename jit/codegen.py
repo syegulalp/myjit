@@ -21,6 +21,14 @@ class JitObj:
         pass
 
 
+class Value(JitObj):
+    pass
+
+
+class Variable(JitObj):
+    pass
+
+
 class AttrLookup:
     pass
     # Get an Attribute object and a namespace, and attempt to
@@ -41,14 +49,20 @@ class TypeTarget:
 
 class Codegen:
     def __init__(self):
-        self.modules = {}        
+        self.modules = {}
         self.target_data = None
 
     def val(self, obj: JitObj):
-        llvm = obj.llvm
-        if isinstance(llvm, ir.AllocaInstr):
-            llvm = self.builder.load(llvm)
-        return llvm
+        if isinstance(obj, Value):
+            return obj.llvm
+        elif isinstance(obj, Variable):
+            return self.builder.load(obj.llvm)
+
+    # def val_node(self, obj: JitObj):
+    #     if isinstance(obj, Value):
+    #         return obj
+    #     elif isinstance(obj, Variable):
+    #         return Value(obj.j_type.pointee.j_type, self.builder.load(obj.llvm), obj)
 
     def codegen_all(self, code_obj):
 
@@ -64,7 +78,9 @@ class Codegen:
 
         if not self.target_data:
             self.target_data = binding.create_target_data(self.module.data_layout)
-            self.bitness = ir.PointerType(ir.IntType(8)).get_abi_size(self.target_data) * 8
+            self.bitness = (
+                ir.PointerType(ir.IntType(8)).get_abi_size(self.target_data) * 8
+            )
             self.mem = ir.IntType(self.bitness)
             self.mem_ptr = ir.PointerType(self.mem)
             self.memv = lambda val: ir.Constant(ir.IntType(self.bitness), val)
@@ -101,6 +117,24 @@ class Codegen:
     def type_target(self, tt):
         return TypeTarget(self.type_targets, tt)
 
+    def get_annotation(self, annotation):
+        item = ast.unparse(annotation)
+        arg_type = eval(item, self.py_module.__dict__)
+        if not arg_type:
+            raise JitTypeError("annotation not found")
+
+        if not isinstance(arg_type, PrimitiveType):
+            converted_arg_type = type_conversions(arg_type)
+
+            if converted_arg_type is None:
+                raise JitTypeError(f"Type {arg_type} not supported")
+            arg_type = converted_arg_type
+
+        if isinstance(arg_type, ObjectType):
+            arg_type = objectpointer(arg_type)
+
+        return arg_type
+
     def visit_ClassDef(self, node: ast.ClassDef):
         print(node.__dict__)
 
@@ -108,28 +142,14 @@ class Codegen:
 
         self.type_targets = []
         self.break_stack = []
+        self.loop_stack = []
         self.argtypes = []
 
         for argument in node.args.args:
-            converted_arg_type = None
             if not argument.annotation:
                 raise JitTypeError(f"Arg {argument.arg} not annotated")
 
-            item = ast.unparse(argument.annotation)
-            arg_type = eval(item, self.py_module.__dict__)
-
-            if not arg_type:
-                raise JitTypeError("annotation not found")
-
-            if not isinstance(arg_type, PrimitiveType):
-                converted_arg_type = type_conversions(arg_type)
-
-                if converted_arg_type is None:
-                    raise JitTypeError(f"Type {arg_type} not supported")
-                arg_type = converted_arg_type
-
-            if isinstance(arg_type, ObjectType):
-                arg_type = pointer(arg_type)
+            arg_type = self.get_annotation(argument.annotation)
             self.argtypes.append(arg_type)
 
         self.type_data: dict = {}
@@ -160,7 +180,7 @@ class Codegen:
         # TODO: use type alloca
 
         if self.return_type is not void:
-            self.return_value = JitObj(
+            self.return_value = Variable(
                 self.return_type, self.return_type.alloca(self), None
             )
         else:
@@ -171,7 +191,11 @@ class Codegen:
         for func_argument, argument, argtype in zip(
             self.function.args, node.args.args, self.argtypes
         ):
-            self.vars[argument.arg] = JitObj(argtype, func_argument, argument)
+            # if isinstance(argtype, ObjectPointer):
+            #     val = Value(argtype.pointee, self.builder.load(func_argument), argument)
+            # else:
+            val = Value(argtype, func_argument, argument)
+            self.vars[argument.arg] = val
 
         self.setup_exit = self.builder.branch(self.entry_block)
         self.builder.position_at_start(self.entry_block)
@@ -214,7 +238,7 @@ class Codegen:
 
             with self.builder.goto_block(self.entry_block):
                 self.builder.position_before(self.setup_exit)
-                self.return_value = JitObj(
+                self.return_value = Variable(
                     self.return_type, self.return_type.alloca(self), None
                 )
 
@@ -222,54 +246,78 @@ class Codegen:
         self.builder.branch(self.exit_block)
 
     def visit_Constant(self, node: ast.Constant):
+
         val = node.value
         default_type_to_use = type_conversions(val.__class__)
+
         if not default_type_to_use:
             raise JitTypeError("type not supported", type(node.value))
+
         if self.type_targets and self.type_targets[0] is not None:
             if not isinstance(self.type_targets[0], PrimitiveType):
-                raise JitTypeError("can't coerce", type(node.value))
+                raise JitTypeError(
+                    "can't coerce", type(node.value), self.type_targets[0]
+                )
             default_type_to_use = self.type_targets[0]
-        result = JitObj(
+
+        result = Value(
             default_type_to_use, ir.Constant(default_type_to_use.llvm, val), node
         )
 
         return result
 
     def visit_Name(self, node: ast.Name):
+
         var_ref = self.vars.get(node.id)
-        if not var_ref:
-            return None
-        return var_ref
+        if var_ref:
+            # if isinstance(var_ref, ObjectPointer):
+            #     return self.builder.load(var_ref)
+            return var_ref
+
+        var_ref = self.py_module.__dict__.get(node.id)
+
+        # attempt to capture value at compile time from surrounding module
+        # TODO: pass silently as a variable?
+
+        if var_ref:
+            new_node = ast.Constant(value=var_ref)
+            new_value = self.codegen(new_node)
+            self.create_name(node, new_value)
+            return new_value
+
+        return None
+
+    def create_name(self, varname, value):
+        with self.builder.goto_block(self.setup_block):
+            alloc = value.j_type.alloca(self)
+        ref = Variable(value.j_type, alloc, varname)
+        self.vars[varname.id] = ref
+        return ref
 
     def visit_Assign(self, node: Union[ast.Assign, ast.AnnAssign]):
+
         # TODO: allow multiple assign
+
         if isinstance(node, ast.AnnAssign):
             varname: ast.Name = node.target
         else:
             varname: ast.Name = node.targets[0]
 
-        # TODO: pointer check when recipient
         var_ref: JitObj = self.codegen(varname)
 
-        if var_ref is None:
-            tt = var_ref
-
-        # TODO: ensure the pointer in question points to an actual variable
-        # we need some way to know this!
-
-        elif isinstance(var_ref.j_type, PointerType):
-            tt = var_ref.j_type.pointee
+        if isinstance(node, ast.AnnAssign):
+            tt = self.get_annotation(node.annotation)
         else:
-            tt = var_ref.j_type
+            if var_ref is None:
+                tt = None
+            else:
+                tt = var_ref.j_type
 
         with self.type_target(tt):
             value: JitObj = self.codegen(node.value)
 
         if not var_ref:
-            alloc = value.j_type.alloca(self)
-            ref = JitObj(value.j_type, alloc, varname)
-            self.vars[varname.id] = ref
+            ref = self.create_name(varname, value)
         else:
             ref = var_ref
 
@@ -282,7 +330,8 @@ class Codegen:
             raise JitTypeError("mismatched types:", ref.j_type, value.j_type)
 
         ref_llvm = ref.llvm
-        return self.builder.store(value.llvm, ref_llvm)
+        val = self.val(value)
+        return self.builder.store(val, ref_llvm)
 
     def visit_AugAssign(self, node: ast.AugAssign):
         binop = ast.BinOp(left=node.target, right=node.value, op=node.op)
@@ -294,6 +343,7 @@ class Codegen:
 
     def visit_BinOp(self, node: ast.BinOp):
         lhs: JitObj = self.codegen(node.left)
+        # lhs_v = self.val_node(lhs)
 
         with self.type_target(lhs.j_type):
             rhs: JitObj = self.codegen(node.right)
@@ -306,8 +356,11 @@ class Codegen:
         if lhs.j_type != rhs.j_type:
             raise JitTypeError("mismatched types for op:", lhs.j_type, rhs.j_type)
 
-        result = op(self, lhs, rhs)
-        return JitObj(lhs.j_type, result, node)
+        lhs_v = self.val(lhs)
+        rhs_v = self.val(rhs)
+        result = op(self, lhs_v, rhs_v)
+
+        return Value(lhs.j_type, result, node)
 
     def visit_UnaryOp(self, node: ast.UnaryOp):
 
@@ -319,7 +372,7 @@ class Codegen:
             raise Exception("Op not supported", optype)
 
         result = op(self, lhs)
-        return JitObj(lhs.j_type, result, node)
+        return Value(lhs.j_type, result, node)
 
     def visit_Compare(self, node: ast.Compare):
 
@@ -327,18 +380,24 @@ class Codegen:
         # maybe unpack that to if x==y and y==z
 
         lhs: JitObj = self.codegen(node.left)
-        rhs: JitObj = self.codegen(node.comparators[0])
+        lhs_val = self.val(lhs)
+        # lhs_n = self.val_node(lhs)
+        # print(lhs_n.__dict__)
+
+        with self.type_target(lhs.j_type):
+            rhs: JitObj = self.codegen(node.comparators[0])
+        rhs_val = self.val(rhs)
 
         optype = node.ops[0].__class__.__name__
         op = getattr(lhs.j_type, f"impl_{optype}", None)
         if not op:
-            raise Exception("Op not supported", optype)
+            raise Exception("Op not supported", optype, lhs.j_type)
 
         if lhs.j_type != rhs.j_type:
             raise JitTypeError("mismatched types for op:", lhs.j_type, rhs.j_type)
 
-        result = op(self, lhs, rhs)
-        return JitObj(u1, result, node)
+        result = op(self, lhs_val, rhs_val)
+        return Value(u1, result, node)
 
     def visit_If(self, node: ast.If):
         then_block = self.builder.append_basic_block("then")
@@ -365,6 +424,7 @@ class Codegen:
     def visit_While(self, node: ast.While):
         loop_block = self.builder.append_basic_block("while")
         end_block = self.builder.append_basic_block("end_while")
+        self.loop_stack.append(loop_block)
         self.break_stack.append(end_block)
 
         self.builder.branch(loop_block)
@@ -382,15 +442,69 @@ class Codegen:
         break_target = self.break_stack.pop()
         self.builder.branch(break_target)
 
+    def visit_Continue(self, node: ast.Continue):
+        loop_target = self.loop_stack.pop()
+        self.builder.branch(loop_target)
+
     def visit_Subscript(self, node: ast.Subscript):
         value = self.codegen(node.value)
-        val_llvm = self.val(value)
+        val_llvm = value.llvm
 
         slice = self.codegen(node.slice)
         index = self.val(slice)
-
         ptr = self.builder.gep(val_llvm, [self.zero, index])
-        return JitObj(pointer(value.j_type.pointee.base_type), ptr, None)
+
+        # TODO: this feels wrong
+        # we should have a method for j-type that extracts
+        # the j_type of a subscript
+
+        if isinstance(value.j_type, ObjectPointer):
+            return Value(value.j_type.pointee.base_type, ptr, None)
+
+        return Variable(value.j_type.base_type, ptr, None)
+
+    def visit_BoolOp(self, node: ast.BoolOp):
+
+        # TODO: multicomparisons
+
+        lhs = self.codegen(node.values[0])
+        rhs = self.codegen(node.values[1])
+
+        lhs_val = self.val(lhs)
+        rhs_val = self.val(rhs)
+
+        if isinstance(node.op, ast.And):
+            result = self.builder.and_(lhs_val, rhs_val)
+
+        return Value(u1, result, None)
+
+    def visit_Expr(self, node: ast.Expr):
+        return self.codegen(node.value)
+
+    def visit_Call(self, node: ast.Call):
+
+        arg = self.codegen(node.args[0])
+        a_val = self.val(arg)
+
+        p_func = ir.Function(
+            self.module,
+            ir.FunctionType(
+                ir.IntType(64),
+                [ir.PointerType(ir.IntType(8)), ir.IntType(64)],
+                var_arg=True,
+            ),
+            "printf",
+        )
+
+        s1 = ir.GlobalVariable(self.module, ir.ArrayType(ir.IntType(8), 6), "str_1")
+
+        s1.initializer = ir.Constant(
+            ir.ArrayType(ir.IntType(8), 6), bytearray("%lld\n\x00", encoding="utf8")
+        )
+
+        s2 = self.builder.gep(s1, [self.zero, self.zero])
+
+        self.builder.call(p_func, [s2, a_val])
 
 
 codegen = Codegen()
