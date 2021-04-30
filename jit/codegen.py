@@ -2,11 +2,13 @@ from llvmlite import ir, binding
 import sys
 import ast, inspect, builtins
 import pprint
+import pathlib
 
 from llvmlite.ir.types import VoidType
 from .j_types import *
 from .errors import JitTypeError, BaseJitError
 from collections import namedtuple
+from . import settings
 
 from typing import Union
 
@@ -90,11 +92,20 @@ class Codegen:
         self.instructions = ast.parse(inspect.getsource(code_obj))
         self.var_counter = 0
 
-        with open("debug.txt", "w") as self.output:
-            self.codegen(self.instructions)
+        dump_file = "debug"
 
-        with open("debug.llvm", "w") as self.output:
-            self.output.write(str(self.module))
+        if settings.DUMP_TO_DIR:
+            module_file = codegen.py_module.__file__
+            module_path = pathlib.Path(module_file)
+            dump_file = f"{module_path}.debug"
+
+        if settings.DEBUG:
+            with open(f"{dump_file}.debug.txt", "w") as self.output:
+                self.codegen(self.instructions)
+
+        if settings.DUMP:
+            with open(f"{dump_file}.debug.llvm", "w") as self.output:
+                self.output.write(str(self.module))
 
     def codegen(self, instruction):
         # print(instruction)

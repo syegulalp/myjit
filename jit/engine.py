@@ -3,6 +3,8 @@ from ctypes import CFUNCTYPE
 from .j_types import PrimitiveType
 import pathlib
 
+from . import settings
+
 class JitEngine:
     def __init__(self):
         llvm.initialize()
@@ -47,16 +49,27 @@ class JitEngine:
             f.write(str(mod))
         return mod
 
-    # link in other, preserve=False
-    # other module not usable fater call
-    # so, use anonymous commands?
-    # or llvmlite.binding.add_symbol?
-
     def compile(self, codegen, opt_level=None, entry_point="main"):
+
+        module_file = codegen.py_module.__file__
+        module_path = pathlib.Path(module_file)
+        module_base_path = module_path.parent
+        module_filename = module_path.parts[-1]
+        jit_module_filename = f"{module_filename}.jit"
+        obj_module_filename = f"{module_filename}.obj"
+        jit_module_path = pathlib.Path(module_base_path, jit_module_filename)
 
         self.engine = self.engines.get(codegen.py_module_name, None)
         if self.engine is None:
             self.engine = self.create_execution_engine()
+
+            if settings.ASM:
+
+                def obj_write(module, buffer):
+                    with open(module_base_path / obj_module_filename, "wb") as f:
+                        f.write(buffer)
+
+                self.engine.set_object_cache(obj_write)
 
         do_jit = False
 
@@ -64,23 +77,17 @@ class JitEngine:
         if not self.engine.get_function_address(function_name):
             do_jit = True
 
-        module_file = codegen.py_module.__file__
-        module_path = pathlib.Path(module_file)
-        module_base_path = module_path.parent
-        module_filename = module_path.parts[-1]
-        jit_module_filename = f"{module_filename}.jit"
-        jit_module_path = pathlib.Path(module_base_path, jit_module_filename)
-        
         if jit_module_path.exists():
             if jit_module_path.stat().st_mtime < module_path.stat().st_mtime:
                 do_jit = True
         else:
             do_jit = True
-        
+
         if do_jit:
-            mod = self.compile_ir(str(codegen.module), opt_level)        
-            with open(f"{module_file}.jit", "wb") as f:
-                f.write(mod.as_bitcode())
+            mod = self.compile_ir(str(codegen.module), opt_level)
+            if settings.CACHE:
+                with open(f"{module_file}.jit", "wb") as f:
+                    f.write(mod.as_bitcode())
         else:
             with open(f"{module_file}.jit", "rb") as f:
                 bitcode = f.read()
@@ -88,8 +95,8 @@ class JitEngine:
             mod.verify()
             self.engine.add_module(mod)
             self.engine.finalize_object()
-            self.engine.run_static_constructors()            
-            
+            self.engine.run_static_constructors()
+
         self.modules[codegen.py_module_name] = mod
 
         arg_types = [_.to_ctype() for _ in codegen.argtypes]
@@ -106,20 +113,6 @@ class JitEngine:
         ff.restype = func.return_jtype.to_ctype()
 
         return ff
-
-    def load_bc(self, external, module):
-        """
-        Placeholder for loading `external` bitcode into jit
-        and optionally merging with `module` (e.g., stdlib loading)
-        """
-
-    def save_bc(self, module):
-        """
-        Placeholder to write bitcode out
-        """
-
-    def load_asm(self):
-        pass
 
 
 jitengine = JitEngine()
