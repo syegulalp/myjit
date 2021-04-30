@@ -51,7 +51,7 @@ def gt8():
 
 
 class Test(unittest.TestCase):
-    def test_return_constant(self):
+    def test_gt(self):
         self.assertEqual(gt1(), True)
         self.assertEqual(gt2(), False)
         self.assertEqual(gt3(), True)

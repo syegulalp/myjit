@@ -15,6 +15,6 @@ def sh2():
 
 
 class Test(unittest.TestCase):
-    def test_return_constant(self):
+    def test_bitshift(self):
         self.assertEqual(sh1(), 8)
         self.assertEqual(sh2(), 2)

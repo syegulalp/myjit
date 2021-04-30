@@ -13,6 +13,6 @@ def zero():
 
 
 class Test(unittest.TestCase):
-    def test_return_constant(self):
+    def test_void_zero(self):
         self.assertEqual(void(), None)
         self.assertEqual(zero(), 0)

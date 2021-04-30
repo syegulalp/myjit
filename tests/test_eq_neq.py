@@ -51,7 +51,7 @@ def neq4():
 
 
 class Test(unittest.TestCase):
-    def test_return_constant(self):
+    def test_eq_neq(self):
         self.assertEqual(eq1(), True)
         self.assertEqual(eq2(), False)
         self.assertEqual(eq3(), True)

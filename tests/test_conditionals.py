@@ -60,7 +60,7 @@ def cond5():
 
 
 class Test(unittest.TestCase):
-    def test_return_constant(self):
+    def test_conditionals(self):
         self.assertEqual(cond1(), 5)
         self.assertEqual(cond2(), 10)
         self.assertEqual(cond3(), 1)

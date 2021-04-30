@@ -39,7 +39,7 @@ def mod6():
 
 
 class Test(unittest.TestCase):
-    def test_return_constant(self):
+    def test_modulo(self):
         self.assertEqual(mod1(), 0)
         self.assertEqual(mod2(), 0)
         self.assertEqual(mod3(), 1)

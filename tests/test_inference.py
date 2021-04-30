@@ -14,7 +14,7 @@ def inf2(a: j.i32):
 
 
 class Test(unittest.TestCase):
-    def test_return_constant(self):
+    def test_inference(self):
 
         self.assertEqual(inf1(2), 4.0)
         self.assertEqual(inf2(2), 4)

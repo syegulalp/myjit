@@ -15,6 +15,6 @@ def neg2():
 
 
 class Test(unittest.TestCase):
-    def test_return_constant(self):
+    def test_negation(self):
         self.assertEqual(neg1(), -2)
         self.assertEqual(neg2(), -2.0)

@@ -27,7 +27,7 @@ def div2():
 
 
 class Test(unittest.TestCase):
-    def test_return_constant(self):
+    def test_mul_div(self):
         self.assertEqual(mul1(), 4)
         self.assertEqual(mul2(), 5.0)
         self.assertEqual(div1(), 2)

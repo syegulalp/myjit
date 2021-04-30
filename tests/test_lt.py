@@ -51,7 +51,7 @@ def lt8():
 
 
 class Test(unittest.TestCase):
-    def test_return_constant(self):
+    def test_lt(self):
         self.assertEqual(lt1(), True)
         self.assertEqual(lt2(), False)
         self.assertEqual(lt3(), True)

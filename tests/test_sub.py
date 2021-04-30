@@ -2,17 +2,6 @@ import unittest
 from jit import jit
 
 
-@jit
-def add1():
-    x = 1
-    return x + 2
-
-
-@jit
-def add2():
-    x = 1.0
-    return x + 2.5
-
 
 @jit
 def sub1():
@@ -27,8 +16,6 @@ def sub2():
 
 
 class Test(unittest.TestCase):
-    def test_return_constant(self):
-        self.assertEqual(add1(), 3)
-        self.assertEqual(add2(), 3.5)
+    def test_sub(self):
         self.assertEqual(sub1(), 2)
         self.assertEqual(sub2(), 1.5)

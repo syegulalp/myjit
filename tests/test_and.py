@@ -11,5 +11,5 @@ def andtest():
 
 
 class Test(unittest.TestCase):
-    def test_return_constant(self):
+    def test_and(self):
         self.assertEqual(andtest(), True)
