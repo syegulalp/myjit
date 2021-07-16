@@ -1,7 +1,8 @@
 import llvmlite.binding as llvm
-from ctypes import CFUNCTYPE
+from ctypes import CFUNCTYPE, ArgumentError
 from .j_types import PrimitiveType
 import pathlib
+from .errors import JitTypeError
 
 from . import settings
 
@@ -108,7 +109,11 @@ class JitEngine:
         def ff(*a, **ka):
             func_ptr = eng.get_function_address(entry_point)
             cfunc = cfunctype(func_ptr)
-            return cfunc(*a, **ka)
+            try:
+                return cfunc(*a, **ka)
+            except ArgumentError:
+                raise JitTypeError
+
 
         ff.restype = func.return_jtype.to_ctype()
 

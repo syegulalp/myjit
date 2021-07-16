@@ -12,6 +12,38 @@ def jit_m(name=None):
 
 
 def jit(func):
+
+    try:
+        c.codegen_all(func)
+    except Exception as e:
+        raise e
+
+    # TODO: separate compilation from extraction of function
+
+    jitted_function = jitengine.compile(c, entry_point=func.__name__)
+    func._jit = jitted_function
+
+    def wrapper(*a, **ka):
+        aa = []
+        for arg in a:
+            if isinstance(arg, JitType):
+                aa.append(arg.from_jtype(arg))
+            else:
+                aa.append(arg)
+
+        result = jitted_function(*aa, **ka)
+        if hasattr(result, "contents"):
+            return result.contents
+        return result
+
+    #wrapper.f = func
+    wrapper._wrapped = func
+    wrapper._jit = jitted_function
+
+    return wrapper
+
+
+def jit_lazy(func):
     def wrapper(*a, **ka):
         aa = []
         for arg in a:
@@ -33,14 +65,14 @@ def jit(func):
 
         # TODO: separate compilation from extraction of function
 
-        c1 = jitengine.compile(c, entry_point=func.__name__)
-        func._jit = c1
-        result = c1(*aa, **ka)
+        jitted_function = jitengine.compile(c, entry_point=func.__name__)
+        func._jit = jitted_function
+        result = jitted_function(*aa, **ka)
         if hasattr(result, "contents"):
             return result.contents
         return result
 
-    wrapper.f = func
+    wrapper._wrapped = func
+    # wrapper._jit = func._jit
 
     return wrapper
-

@@ -52,7 +52,7 @@ def life(a: arr_type, world: int):
 
             q = 0
 
-            if z > 0:
+            if z:
                 if total > 1 and total < 4:
                     q = 1
             else:

@@ -73,7 +73,7 @@ class BaseInteger(PrimitiveType):
         return codegen.builder.shl(lhs, rhs)
 
     def impl_RShift(self, codegen, lhs, rhs):        
-        return codegen.builder.ashr(lhs, rhs)
+        return codegen.builder.ashr(lhs, rhs)    
 
 
 class SignedInteger(BaseInteger):
@@ -118,6 +118,8 @@ class SignedInteger(BaseInteger):
     def impl_LtE(self, codegen, lhs, rhs):        
         return codegen.builder.icmp_signed("<=", lhs, rhs)
 
+    def to_bool(self, codegen, value):
+        return codegen.builder.icmp_signed("!=", value, ir.Constant(value.type, 0))
 
 class UnsignedInteger(BaseInteger):
     signed = False
@@ -146,6 +148,8 @@ class UnsignedInteger(BaseInteger):
     def impl_LtE(self, codegen, lhs, rhs):        
         return codegen.builder.icmp_unsigned("<=", lhs, rhs)
 
+    def to_bool(self, codegen, value):
+        return codegen.builder.icmp_unsigned("!=", value, ir.Constant(value.type, 0))
 
 class BaseFloat(PrimitiveType):
     signed = True
@@ -190,6 +194,8 @@ class BaseFloat(PrimitiveType):
     def impl_LtE(self, codegen, lhs, rhs):        
         return codegen.builder.fcmp_unordered("<=", lhs, rhs)
 
+    def to_bool(self, codegen, value):
+        return codegen.builder.fcmp_unordered("!=", value, ir.Constant(value.type, 0.0))
 
 class Float(BaseFloat):
     size = 32

@@ -1,5 +1,5 @@
 import unittest
-from jit import jit, j_types as j, errors as err
+from jit import jit, j_types as j, errors as err, jit_lazy as jl
 
 # type definition
 arr = j.array(j.u8, (2, 80, 25))
@@ -28,7 +28,7 @@ def main3(a: arr):
         return 1
     return 0
 
-@jit
+@jl
 def main4(a: arr):
     xx = 1
     a[1][79][24] = xx
@@ -63,4 +63,4 @@ class Test(unittest.TestCase):
         x[1][79][24] = 1
         self.assertEqual(main3(x), True)
         with self.assertRaises(err.JitTypeError):
-            main4()
+            main4(x)

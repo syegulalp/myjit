@@ -9,6 +9,7 @@ from .j_types import *
 from .errors import JitTypeError, BaseJitError
 from collections import namedtuple
 from . import settings
+from . import stdlib
 
 from typing import Union
 
@@ -31,11 +32,6 @@ class Variable(JitObj):
     pass
 
 
-class AttrLookup:
-    pass
-    # Get an Attribute object and a namespace, and attempt to
-    # return the object it points to
-
 
 class TypeTarget:
     def __init__(self, tt_list, type_target):
@@ -56,16 +52,18 @@ class Codegen:
 
     def val(self, obj: JitObj):
         if isinstance(obj, Value):
-            return obj.llvm
+            return obj.llvm        
         elif isinstance(obj, Variable):
             return self.builder.load(obj.llvm)
 
-    # def val_node(self, obj: JitObj):
-    #     if isinstance(obj, Value):
-    #         return obj
-    #     elif isinstance(obj, Variable):
-    #         return Value(obj.j_type.pointee.j_type, self.builder.load(obj.llvm), obj)
+    def _coerce_bool(self, expression, node):
+        if node.j_type != u1:
+            expression = node.j_type.to_bool(self, expression)
+        return expression
 
+    def generate_function_name(self, name):
+        return f"jit.{name}"
+    
     def codegen_all(self, code_obj):
 
         # String name of the module this function lives in
@@ -416,7 +414,8 @@ class Codegen:
         end_block = self.builder.append_basic_block("end")
 
         test_clause = self.codegen(node.test)
-        test_clause_llvm = self.val(test_clause)
+        test_clause_llvm = self._coerce_bool(self.val(test_clause), test_clause)
+        
         self.builder.cbranch(test_clause_llvm, then_block, else_block)
 
         self.builder.position_at_start(then_block)
@@ -431,7 +430,7 @@ class Codegen:
         if not self.builder.block.is_terminated:
             self.builder.branch(end_block)
         self.builder.position_at_start(end_block)
-
+    
     def visit_While(self, node: ast.While):
         loop_block = self.builder.append_basic_block("while")
         end_block = self.builder.append_basic_block("end_while")
@@ -443,7 +442,8 @@ class Codegen:
         for n in node.body:
             self.codegen(n)
         test_clause = self.codegen(node.test)
-        test_clause_llvm = self.val(test_clause)
+        test_clause_llvm = self._coerce_bool(self.val(test_clause), test_clause)
+
         self.builder.cbranch(test_clause_llvm, loop_block, end_block)
         self.builder.position_at_start(end_block)
 
@@ -494,28 +494,26 @@ class Codegen:
 
     def visit_Call(self, node: ast.Call):
 
-        arg = self.codegen(node.args[0])
-        a_val = self.val(arg)
+        # only one argument supported so far
+        args = [self.codegen(_) for _ in node.args]
+        #a_val = self.val(arg)
+        vals = [self.val(_) for _ in args]
 
-        p_func = ir.Function(
-            self.module,
-            ir.FunctionType(
-                ir.IntType(64),
-                [ir.PointerType(ir.IntType(8)), ir.IntType(64)],
-                var_arg=True,
-            ),
-            "printf",
-        )
+        function_name = node.func.id
 
-        s1 = ir.GlobalVariable(self.module, ir.ArrayType(ir.IntType(8), 6), "str_1")
+        # TODO: will val pass a pointer to an object? find out
 
-        s1.initializer = ir.Constant(
-            ir.ArrayType(ir.IntType(8), 6), bytearray("%lld\n\x00", encoding="utf8")
-        )
+        # first, find out if this is a function that already exists
+        # call = self.module.globals.get(function_name, None)
+        # if call:
+        #     return self.builder.call(call, vals)
 
-        s2 = self.builder.gep(s1, [self.zero, self.zero])
+        # next, find out if this is a function from the standard library
+        call = stdlib.make(function_name)
+        if call:
+            return call(self, vals)
 
-        self.builder.call(p_func, [s2, a_val])
+        raise Exception(f"no such function {function_name}")
 
 
 codegen = Codegen()

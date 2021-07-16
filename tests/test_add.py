@@ -1,10 +1,6 @@
 import unittest
-from jit import jit, j_types as j, errors as err
+from jit import jit, j_types as j, errors as err, jit_lazy as jl
 
-
-@jit
-def add(a, b):
-    return a + b
 
 
 @jit
@@ -30,6 +26,9 @@ def add3(a: int, b: int):
 def add4(a: float, b: float):
     return a + b
 
+@jl
+def add(a, b):
+    return a + b
 
 class Test(unittest.TestCase):
     def test_add(self):
@@ -40,5 +39,6 @@ class Test(unittest.TestCase):
 
     def test_add_err(self):
         with self.assertRaises(err.JitTypeError):
-            add(2, 2.0)
+            add(2,2)
+        with self.assertRaises(err.JitTypeError):
             add0(2.0, 2.0)
