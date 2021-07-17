@@ -1,4 +1,4 @@
-from jit import jit_immediate as jit, j_types as j
+from jit import jit, j_types as j
 
 WIDTH = 80
 HEIGHT = 40

@@ -12,7 +12,7 @@ When I came back to it, I decided it might be more interesting to use a subset o
 
 # Usage
 
-When you decorate a function with the `@jit` decorator, it's transformed into machine-native assembly when the module is loaded. Execute the function, and the decorator will execute the assembly in lieu of the original code, and return a result.
+When you decorate a function with the `@jit` decorator, it's transformed into machine-native assembly when the function is first executed. You can also use the `@jit_immediate` decorator to have the function JITted when the function's module is loaded, as opposed to when the decorated function is first executed.
 
 In time this functionality could be expanded to AOT compilation as well. For instance, one could feed it a function and have a binary generated and deployed side-by-side with one's Python code, with some convenience functions provided by the compiler to wrap the binary and use it in your code. (It might also be possible to feed it an entire code tree and compile that, but that's a long way off.)
 
