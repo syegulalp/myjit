@@ -32,7 +32,6 @@ class Variable(JitObj):
     pass
 
 
-
 class TypeTarget:
     def __init__(self, tt_list, type_target):
         self.tt_list = tt_list
@@ -52,7 +51,7 @@ class Codegen:
 
     def val(self, obj: JitObj):
         if isinstance(obj, Value):
-            return obj.llvm        
+            return obj.llvm
         elif isinstance(obj, Variable):
             return self.builder.load(obj.llvm)
 
@@ -63,7 +62,7 @@ class Codegen:
 
     def generate_function_name(self, name):
         return f"jit.{name}"
-    
+
     def codegen_all(self, code_obj):
 
         # String name of the module this function lives in
@@ -415,7 +414,7 @@ class Codegen:
 
         test_clause = self.codegen(node.test)
         test_clause_llvm = self._coerce_bool(self.val(test_clause), test_clause)
-        
+
         self.builder.cbranch(test_clause_llvm, then_block, else_block)
 
         self.builder.position_at_start(then_block)
@@ -430,7 +429,7 @@ class Codegen:
         if not self.builder.block.is_terminated:
             self.builder.branch(end_block)
         self.builder.position_at_start(end_block)
-    
+
     def visit_While(self, node: ast.While):
         loop_block = self.builder.append_basic_block("while")
         end_block = self.builder.append_basic_block("end_while")
@@ -496,7 +495,7 @@ class Codegen:
 
         # only one argument supported so far
         args = [self.codegen(_) for _ in node.args]
-        #a_val = self.val(arg)
+        # a_val = self.val(arg)
         vals = [self.val(_) for _ in args]
 
         function_name = node.func.id

@@ -4,7 +4,7 @@ from jit import j_types as j
 
 
 @jit
-def test_print(x:j.i64):
+def test_print(x: j.i64):
     return print(x)
 
 

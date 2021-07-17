@@ -6,6 +6,7 @@ from .errors import JitTypeError
 
 from . import settings
 
+
 class JitEngine:
     def __init__(self):
         llvm.initialize()
@@ -113,7 +114,6 @@ class JitEngine:
                 return cfunc(*a, **ka)
             except ArgumentError:
                 raise JitTypeError
-
 
         ff.restype = func.return_jtype.to_ctype()
 

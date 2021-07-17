@@ -19,5 +19,5 @@ class Test(unittest.TestCase):
         self.assertEqual(inf1(2), 4.0)
         self.assertEqual(inf2(2), 4)
 
-        self.assertEqual(inf1._jit.restype, ctypes.c_double)
-        self.assertEqual(inf2._jit.restype, ctypes.c_int32)
+        self.assertEqual(inf1._wrapped._jit.restype, ctypes.c_double)
+        self.assertEqual(inf2._wrapped._jit.restype, ctypes.c_int32)

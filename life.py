@@ -1,4 +1,4 @@
-from jit import jit, j_types as j
+from jit import jit_immediate as jit, j_types as j
 
 WIDTH = 80
 HEIGHT = 40
@@ -13,8 +13,6 @@ for n in range(HEIGHT):
         arr[0][m][n] = random.random() > 0.8
 
 # TODO: variable capture for more than one instance of captured variable is broken
-# TODO: if z: fails (no automatic bool coercion)
-
 
 @jit
 def life(a: arr_type, world: int):

@@ -1,5 +1,5 @@
 import unittest
-from jit import jit, j_types as j, errors as err, jit_lazy as jl
+from jit import jit, j_types as j, errors as err, jit_immediate as jl
 
 # type definition
 arr = j.array(j.u8, (2, 80, 25))
@@ -28,7 +28,8 @@ def main3(a: arr):
         return 1
     return 0
 
-@jl
+
+@jit
 def main4(a: arr):
     xx = 1
     a[1][79][24] = xx

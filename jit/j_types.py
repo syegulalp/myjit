@@ -35,8 +35,6 @@ class PrimitiveType(JitType):
         return codegen.builder.alloca(self.llvm)
 
 
-
-
 class BaseInteger(PrimitiveType):
 
     j_type = ir.IntType
@@ -60,33 +58,33 @@ class BaseInteger(PrimitiveType):
     def to_ctype(self):
         return self._from_ctype[self.signed][self.size]
 
-    def impl_Add(self, codegen, lhs, rhs):        
+    def impl_Add(self, codegen, lhs, rhs):
         return codegen.builder.add(lhs, rhs)
 
-    def impl_Sub(self, codegen, lhs, rhs):        
+    def impl_Sub(self, codegen, lhs, rhs):
         return codegen.builder.sub(lhs, rhs)
 
-    def impl_Mult(self, codegen, lhs, rhs):        
+    def impl_Mult(self, codegen, lhs, rhs):
         return codegen.builder.mul(lhs, rhs)
 
-    def impl_LShift(self, codegen, lhs, rhs):        
+    def impl_LShift(self, codegen, lhs, rhs):
         return codegen.builder.shl(lhs, rhs)
 
-    def impl_RShift(self, codegen, lhs, rhs):        
-        return codegen.builder.ashr(lhs, rhs)    
+    def impl_RShift(self, codegen, lhs, rhs):
+        return codegen.builder.ashr(lhs, rhs)
 
 
 class SignedInteger(BaseInteger):
     signed = True
 
-    def impl_Div(self, codegen, lhs, rhs):        
+    def impl_Div(self, codegen, lhs, rhs):
         return codegen.builder.sdiv(lhs, rhs)
 
     def impl_USub(self, codegen, lhs):
         lhs = codegen.val(lhs)
         return codegen.builder.sub(ir.Constant(lhs.type, 0), lhs)
 
-    def impl_Mod(self, codegen, lhs, rhs):        
+    def impl_Mod(self, codegen, lhs, rhs):
         b: ir.IRBuilder = codegen.builder
 
         g1 = b.icmp_signed(">=", lhs, ir.Constant(lhs.type, 0))
@@ -100,56 +98,58 @@ class SignedInteger(BaseInteger):
 
         return b.select(g1, g2, g3d)
 
-    def impl_Eq(self, codegen, lhs, rhs):        
+    def impl_Eq(self, codegen, lhs, rhs):
         return codegen.builder.icmp_signed("==", lhs, rhs)
 
-    def impl_NotEq(self, codegen, lhs, rhs):        
+    def impl_NotEq(self, codegen, lhs, rhs):
         return codegen.builder.icmp_signed("!=", lhs, rhs)
 
-    def impl_Gt(self, codegen, lhs, rhs):        
+    def impl_Gt(self, codegen, lhs, rhs):
         return codegen.builder.icmp_signed(">", lhs, rhs)
 
-    def impl_Lt(self, codegen, lhs, rhs):        
+    def impl_Lt(self, codegen, lhs, rhs):
         return codegen.builder.icmp_signed("<", lhs, rhs)
 
-    def impl_GtE(self, codegen, lhs, rhs):        
+    def impl_GtE(self, codegen, lhs, rhs):
         return codegen.builder.icmp_signed(">=", lhs, rhs)
 
-    def impl_LtE(self, codegen, lhs, rhs):        
+    def impl_LtE(self, codegen, lhs, rhs):
         return codegen.builder.icmp_signed("<=", lhs, rhs)
 
     def to_bool(self, codegen, value):
         return codegen.builder.icmp_signed("!=", value, ir.Constant(value.type, 0))
 
+
 class UnsignedInteger(BaseInteger):
     signed = False
 
-    def impl_Div(self, codegen, lhs, rhs):        
+    def impl_Div(self, codegen, lhs, rhs):
         return codegen.builder.udiv(lhs, rhs)
 
-    def impl_Mod(self, codegen, lhs, rhs):        
+    def impl_Mod(self, codegen, lhs, rhs):
         return codegen.builder.urem(lhs, rhs)
 
-    def impl_Eq(self, codegen, lhs, rhs):        
+    def impl_Eq(self, codegen, lhs, rhs):
         return codegen.builder.icmp_unsigned("==", lhs, rhs)
 
-    def impl_NotEq(self, codegen, lhs, rhs):        
+    def impl_NotEq(self, codegen, lhs, rhs):
         return codegen.builder.icmp_unsigned("!=", lhs, rhs)
 
-    def impl_Gt(self, codegen, lhs, rhs):        
+    def impl_Gt(self, codegen, lhs, rhs):
         return codegen.builder.icmp_unsigned(">", lhs, rhs)
 
-    def impl_Lt(self, codegen, lhs, rhs):        
+    def impl_Lt(self, codegen, lhs, rhs):
         return codegen.builder.icmp_unsigned("<", lhs, rhs)
 
-    def impl_GtE(self, codegen, lhs, rhs):        
+    def impl_GtE(self, codegen, lhs, rhs):
         return codegen.builder.icmp_unsigned(">=", lhs, rhs)
 
-    def impl_LtE(self, codegen, lhs, rhs):        
+    def impl_LtE(self, codegen, lhs, rhs):
         return codegen.builder.icmp_unsigned("<=", lhs, rhs)
 
     def to_bool(self, codegen, value):
         return codegen.builder.icmp_unsigned("!=", value, ir.Constant(value.type, 0))
+
 
 class BaseFloat(PrimitiveType):
     signed = True
@@ -160,42 +160,43 @@ class BaseFloat(PrimitiveType):
     def __init__(self):
         self.llvm = self.j_type()
 
-    def impl_Add(self, codegen, lhs, rhs):        
+    def impl_Add(self, codegen, lhs, rhs):
         return codegen.builder.fadd(lhs, rhs)
 
-    def impl_Sub(self, codegen, lhs, rhs):        
+    def impl_Sub(self, codegen, lhs, rhs):
         return codegen.builder.fsub(lhs, rhs)
 
-    def impl_Mult(self, codegen, lhs, rhs):        
+    def impl_Mult(self, codegen, lhs, rhs):
         return codegen.builder.fmul(lhs, rhs)
 
-    def impl_Div(self, codegen, lhs, rhs):        
+    def impl_Div(self, codegen, lhs, rhs):
         return codegen.builder.fdiv(lhs, rhs)
 
     def impl_USub(self, codegen, lhs):
         lhs = codegen.val(lhs)
         return codegen.builder.fsub(ir.Constant(lhs.type, 0.0), lhs)
 
-    def impl_Eq(self, codegen, lhs, rhs):        
+    def impl_Eq(self, codegen, lhs, rhs):
         return codegen.builder.fcmp_unordered("==", lhs, rhs)
 
-    def impl_NotEq(self, codegen, lhs, rhs):        
+    def impl_NotEq(self, codegen, lhs, rhs):
         return codegen.builder.fcmp_unordered("!=", lhs, rhs)
 
-    def impl_Gt(self, codegen, lhs, rhs):        
+    def impl_Gt(self, codegen, lhs, rhs):
         return codegen.builder.fcmp_unordered(">", lhs, rhs)
 
-    def impl_Lt(self, codegen, lhs, rhs):        
+    def impl_Lt(self, codegen, lhs, rhs):
         return codegen.builder.fcmp_unordered("<", lhs, rhs)
 
-    def impl_GtE(self, codegen, lhs, rhs):        
+    def impl_GtE(self, codegen, lhs, rhs):
         return codegen.builder.fcmp_unordered(">=", lhs, rhs)
 
-    def impl_LtE(self, codegen, lhs, rhs):        
+    def impl_LtE(self, codegen, lhs, rhs):
         return codegen.builder.fcmp_unordered("<=", lhs, rhs)
 
     def to_bool(self, codegen, value):
         return codegen.builder.fcmp_unordered("!=", value, ir.Constant(value.type, 0.0))
+
 
 class Float(BaseFloat):
     size = 32

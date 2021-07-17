@@ -1,1 +1,1 @@
-from .decorator import jit, jit_lazy, jit_m
+from .decorator import jit, jit_immediate, jit_m

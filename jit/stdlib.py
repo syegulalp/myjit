@@ -36,7 +36,8 @@ def make_print(self, args):
     from .codegen import Value
     from . import j_types as j
 
-    p_func = _make_llvm(self,
+    p_func = _make_llvm(
+        self,
         "printf",
         ir.IntType(64),
         [ir.PointerType(ir.IntType(8)), ir.IntType(64)],
@@ -51,5 +52,5 @@ def make_print(self, args):
 
     s2 = self.builder.gep(s1, [self.zero, self.zero])
 
-    result = self.builder.call(p_func, [s2]+args)
+    result = self.builder.call(p_func, [s2] + args)
     return Value(j.u64, result, None)

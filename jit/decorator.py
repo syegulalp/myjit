@@ -11,7 +11,7 @@ def jit_m(name=None):
     return fn
 
 
-def jit(func):
+def jit_immediate(func):
 
     try:
         c.codegen_all(func)
@@ -36,14 +36,14 @@ def jit(func):
             return result.contents
         return result
 
-    #wrapper.f = func
+    # wrapper.f = func
     wrapper._wrapped = func
     wrapper._jit = jitted_function
 
     return wrapper
 
 
-def jit_lazy(func):
+def jit(func):
     def wrapper(*a, **ka):
         aa = []
         for arg in a:
@@ -53,7 +53,6 @@ def jit_lazy(func):
                 aa.append(arg)
 
         try:
-
             return func._jit(*aa, **ka)
         except AttributeError:
             pass

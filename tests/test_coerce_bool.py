@@ -10,6 +10,7 @@ def coerce_from_int():
     else:
         return 0
 
+
 @jit
 def coerce_from_int2():
     x = 0
@@ -17,6 +18,7 @@ def coerce_from_int2():
         return 1
     else:
         return 0
+
 
 @jit
 def coerce_from_float():
@@ -26,13 +28,15 @@ def coerce_from_float():
     else:
         return 0
 
+
 @jit
 def coerce_from_float2():
     x = 0.0
     if x:
         return 1
     else:
-        return 0        
+        return 0
+
 
 class Test(unittest.TestCase):
     def test_void_zero(self):
@@ -40,4 +44,3 @@ class Test(unittest.TestCase):
         self.assertEqual(coerce_from_int2(), False)
         self.assertEqual(coerce_from_float(), True)
         self.assertEqual(coerce_from_float2(), False)
-
